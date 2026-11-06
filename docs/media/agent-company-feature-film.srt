@@ -1,71 +1,71 @@
 1
-00:00:01,000 --> 00:00:06,574
+00:00:00,800 --> 00:00:06,374
 Running a team of AI agents? Agent Company turns it into a game you can play.
 
 2
-00:00:07,400 --> 00:00:09,877
+00:00:06,400 --> 00:00:08,877
 Forge a character. Its class is its job.
 
 3
-00:00:09,877 --> 00:00:12,744
+00:00:08,877 --> 00:00:11,744
 Its origin is the tool it runs on.
 
 4
-00:00:13,000 --> 00:00:16,636
+00:00:12,200 --> 00:00:15,836
 Then fit the OpenProof harness: six limits it works within.
 
 5
-00:00:16,636 --> 00:00:19,000
+00:00:15,836 --> 00:00:18,200
 No harness, no deployment.
 
 6
-00:00:20,400 --> 00:00:25,320
+00:00:21,200 --> 00:00:26,000
 Drag your team onto the map. Put someone in the wrong slot, and the map refuses.
 
 7
-00:00:27,600 --> 00:00:29,722
+00:00:26,000 --> 00:00:28,122
 When the ring turns green, sound the horn.
 
 8
-00:00:29,722 --> 00:00:33,151
+00:00:28,122 --> 00:00:31,551
 The orders are written straight into your repository.
 
 9
-00:00:35,800 --> 00:00:40,483
+00:00:32,200 --> 00:00:36,883
 Then the work runs down the line. Tests first, a challenger, an independent review.
 
 10
-00:00:40,483 --> 00:00:42,312
+00:00:36,883 --> 00:00:38,712
 And only you merge.
 
 11
-00:00:43,600 --> 00:00:46,517
+00:00:40,600 --> 00:00:43,517
 When a quest comes back, no proof means no XP.
 
 12
-00:00:46,517 --> 00:00:50,705
+00:00:43,517 --> 00:00:47,705
 An OpenProof evidence record seals it for full credit.
 
 13
-00:00:55,400 --> 00:00:57,472
+00:00:49,400 --> 00:00:51,472
 Every agent carries trust credits.
 
 14
-00:00:57,472 --> 00:01:00,093
+00:00:51,472 --> 00:00:54,093
 Incidents cost the agent that caused them.
 
 15
-00:01:00,093 --> 00:01:02,743
+00:00:54,093 --> 00:00:56,743
 Below fifteen, it is contained.
 
 16
-00:01:08,400 --> 00:01:10,615
+00:01:02,600 --> 00:01:04,815
 Play it in any world, or build your own.
 
 17
-00:01:10,615 --> 00:01:12,423
+00:01:04,815 --> 00:01:06,623
 Even on your phone.
 
 18
-00:01:17,400 --> 00:01:21,502
+00:01:10,800 --> 00:01:14,902
 Agent Company. Free and open source, for any agent tool.

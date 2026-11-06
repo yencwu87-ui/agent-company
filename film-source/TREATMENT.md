@@ -1,6 +1,6 @@
 # Agent Company: feature film. Treatment
 
-**Style:** Living Screencast. 1920×1080, 30 fps, about 83 s, with a British English voice-over (Kokoro bf_emma) and burned-in captions.
+**Style:** Living Screencast. 1920×1080, 30 fps, about 77 s, led by three anatomy figures, with a British English voice-over (Kokoro bf_emma) and burned-in captions.
 
 **Subject:** Agent Company 0.2. Every screen in the film is the real page, driven frame by frame:
 - Guild mode in four worlds, plus handheld mode on a phone;
@@ -23,3 +23,5 @@ The end card follows.
 - No real-game characters, names or logos.
 - No PSA material.
 - No claim words.
+
+**Remake (6 Nov):** the anatomy figures now carry the story: Fig 1 the Forge (new), Fig 2 the dispatch line and Fig 3 trust credits. Short live demos of the real Guild sit between them: deploy, prove, and the worlds.

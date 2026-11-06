@@ -1,92 +1,92 @@
 [
  {
-  "t0": 1,
-  "t1": 6.574,
+  "t0": 0.8,
+  "t1": 6.374,
   "text": "Running a team of AI agents? Agent Company turns it into a game you can play."
  },
  {
-  "t0": 7.4,
-  "t1": 9.877,
+  "t0": 6.4,
+  "t1": 8.877,
   "text": "Forge a character. Its class is its job."
  },
  {
-  "t0": 9.877,
-  "t1": 12.744,
+  "t0": 8.877,
+  "t1": 11.744,
   "text": "Its origin is the tool it runs on."
  },
  {
-  "t0": 13,
-  "t1": 16.636,
+  "t0": 12.2,
+  "t1": 15.836,
   "text": "Then fit the OpenProof harness: six limits it works within."
  },
  {
-  "t0": 16.636,
-  "t1": 19,
+  "t0": 15.836,
+  "t1": 18.2,
   "text": "No harness, no deployment."
  },
  {
-  "t0": 20.4,
-  "t1": 25.32,
+  "t0": 21.2,
+  "t1": 26,
   "text": "Drag your team onto the map. Put someone in the wrong slot, and the map refuses."
  },
  {
-  "t0": 27.6,
-  "t1": 29.722,
+  "t0": 26,
+  "t1": 28.122,
   "text": "When the ring turns green, sound the horn."
  },
  {
-  "t0": 29.722,
-  "t1": 33.151,
+  "t0": 28.122,
+  "t1": 31.551,
   "text": "The orders are written straight into your repository."
  },
  {
-  "t0": 35.8,
-  "t1": 40.483,
+  "t0": 32.2,
+  "t1": 36.883,
   "text": "Then the work runs down the line. Tests first, a challenger, an independent review."
  },
  {
-  "t0": 40.483,
-  "t1": 42.312,
+  "t0": 36.883,
+  "t1": 38.712,
   "text": "And only you merge."
  },
  {
-  "t0": 43.6,
-  "t1": 46.517,
+  "t0": 40.6,
+  "t1": 43.517,
   "text": "When a quest comes back, no proof means no XP."
  },
  {
-  "t0": 46.517,
-  "t1": 50.705,
+  "t0": 43.517,
+  "t1": 47.705,
   "text": "An OpenProof evidence record seals it for full credit."
  },
  {
-  "t0": 55.4,
-  "t1": 57.472,
+  "t0": 49.4,
+  "t1": 51.472,
   "text": "Every agent carries trust credits."
  },
  {
-  "t0": 57.472,
-  "t1": 60.093,
+  "t0": 51.472,
+  "t1": 54.093,
   "text": "Incidents cost the agent that caused them."
  },
  {
-  "t0": 60.093,
-  "t1": 62.743,
+  "t0": 54.093,
+  "t1": 56.743,
   "text": "Below fifteen, it is contained."
  },
  {
-  "t0": 68.4,
-  "t1": 70.615,
+  "t0": 62.6,
+  "t1": 64.815,
   "text": "Play it in any world, or build your own."
  },
  {
-  "t0": 70.615,
-  "t1": 72.423,
+  "t0": 64.815,
+  "t1": 66.623,
   "text": "Even on your phone."
  },
  {
-  "t0": 77.4,
-  "t1": 81.502,
+  "t0": 70.8,
+  "t1": 74.902,
   "text": "Agent Company. Free and open source, for any agent tool."
  }
 ]

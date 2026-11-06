@@ -40,7 +40,7 @@ def pad(freqs, d, v=0.04):
 
 CH = [[50, 54, 57, 62], [47, 50, 54, 59], [43, 47, 50, 55], [45, 49, 52, 57]]  # D, Bm, G, A
 def section(t):
-    for a, n in ((77.2, "end"), (67.2, "worlds"), (55.0, "trust"), (43.2, "prove"), (35.0, "work"), (19.6, "deploy"), (7.2, "forge")):
+    for a, n in ((70.4, "end"), (61.8, "worlds"), (48.4, "trust"), (39.8, "prove"), (31.4, "work"), (21.0, "deploy"), (5.8, "forge")):
         if t >= a: return n
     return "intro"
 bar = 0; t = 0.0
@@ -62,12 +62,12 @@ while t < DUR - 1.0:
     if sec == "worlds":   # a little chiptune arpeggio over the world changes
         for i in range(8): add(music, chip(midi(ch[1 + i % 3] + 24), 0.1, 0.035), t + i * BEAT / 2, 1.0, 0.3)
     t += BAR; bar += 1
-for s0 in (19.6, 43.2, 67.2):
+for s0 in (21.0, 39.8, 61.8):
     for i, f in enumerate((180, 150, 120, 95)): add(music, tom(f, 0.2), s0 - 0.5 + i * 0.12, 1.0, -0.3 + i * 0.2)
     add(music, crash(0.15), s0, 1.0, 0.2)
-for m in CH[0]: add(music, epiano(midi(m + 12), 4.5, 0.12), 77.4, 1.0)
+for m in CH[0]: add(music, epiano(midi(m + 12), 4.5, 0.12), 70.8, 1.0)
 # hush before the cage drops
-g = np.ones(N); a, b = int(61.6 * SR), int(62.3 * SR); g[a:b] = np.linspace(1, 0.1, b - a); g[b:int(63.4 * SR)] = np.linspace(0.1, 1, int(63.4 * SR) - b)
+g = np.ones(N); a, b = int(54.8 * SR), int(55.5 * SR); g[a:b] = np.linspace(1, 0.1, b - a); g[b:int(56.6 * SR)] = np.linspace(0.1, 1, int(56.6 * SR) - b)
 music *= g[:, None]
 music[: int(0.6 * SR)] = 0
 

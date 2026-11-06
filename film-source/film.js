@@ -2,14 +2,17 @@ import { clamp, lerp, seg, eio, eo } from "/core/lib.js";
 
 const VO = await (await fetch("vo/dur.json")).json();
 const LINES = await (await fetch("lines.json")).json();
-const AT = { a1: 1.0, a2: 7.4, a3: 13.0, a4: 20.4, a5: 27.6, a6: 35.8, a7: 43.6, a8: 55.4, a9: 68.4, a10: 77.4 };
-const DUR = 83.0;
+const AT = { a1: 0.8, a2: 6.4, a3: 12.2, a4: 21.2, a5: 26.0, a6: 32.2, a7: 40.6, a8: 49.4, a9: 62.6, a10: 70.8 };
+const DUR = 77.0;
+// The real Guild demo keeps its own clock (src): each real-demo segment of this film plays a stretch of it.
+const SEGS = [[0, 5.8, 0], [21.0, 31.4, 2.6], [39.8, 48.4, 4.0], [61.8, 70.6, 5.2]];   // [from, to, src − t]
+const srcOf = (t) => { const s = SEGS.find(([a, b]) => t >= a && t < b); return s ? t + s[2] : null; };
 
 // ---------------------------------------------------------------- the real pages
 const appF = document.querySelector("#app iframe"), phoneF = document.querySelector("#phone iframe");
-const fig1F = document.querySelector("#fig1 iframe"), fig2F = document.querySelector("#fig2 iframe");
+const fig0F = document.querySelector("#fig0 iframe"), fig1F = document.querySelector("#fig1 iframe"), fig2F = document.querySelector("#fig2 iframe");
 const loaded = (f) => new Promise((r) => (f.contentDocument && f.contentDocument.readyState === "complete" && f.contentWindow.document.body ? r() : f.addEventListener("load", r, { once: true })));
-await Promise.all([appF, phoneF, fig1F, fig2F].map(loaded));
+await Promise.all([appF, phoneF, fig0F, fig1F, fig2F].map(loaded));
 await document.fonts.ready;
 const AW = appF.contentWindow, AD = appF.contentDocument, PW = phoneF.contentWindow, PD = phoneF.contentDocument;
 await new Promise((r) => setTimeout(r, 400));
@@ -83,7 +86,7 @@ function applyApp(t) {
   // transient UI the page would animate on its own: drawn per frame from the clock instead
   const nope = AD.querySelector('[data-slot="q002:paladin"]');
   if (nope) { const on = t >= 25.6 && t < 26.4; nope.classList.toggle("nope", on); nope.style.transform = on ? `translateX(${Math.sin((t - 25.6) * 55) * 5 * (1 - (t - 25.6) / 0.8)}px)` : ""; }
-  const TO = [[25.6, 27.8, "Rogue can't take the Paladin slot"], [22.8, 24.0, "Ollo Inkwell deployed"], [28.2, 29.6, "Vera Quickblade deployed"], [31.5, 33.8, "The horn sounds: quests deployed"], [19.6, 20.8, "Vera Quickblade joins the guild"], [56.6, 58.3, "Escaped defect: trust credits deducted"], [67.4, 69.0, "Neon City: same rules, new world"], [69.2, 70.9, "Sky Islands: same rules, new world"], [71.0, 72.6, "Star Fleet: same rules, new world"]];
+  const TO = [[25.6, 27.8, "Rogue can't take the Paladin slot"], [28.2, 29.6, "Vera Quickblade deployed"], [31.5, 33.8, "The horn sounds: quests deployed"], [19.6, 20.8, "Vera Quickblade joins the guild"], [56.6, 58.3, "Escaped defect: trust credits deducted"], [67.4, 69.0, "Neon City: same rules, new world"], [69.2, 70.9, "Sky Islands: same rules, new world"], [71.0, 72.6, "Star Fleet: same rules, new world"]];
   const msg = (TO.find(([a, b]) => t >= a && t < b) || [0, 0, ""])[2], toastEl = AD.querySelector("#toast");
   if (toastEl.textContent !== msg) toastEl.textContent = msg; toastEl.classList.toggle("on", !!msg); toastEl.style.opacity = msg ? 1 : 0; toastEl.style.transform = "translate(-50%,0)";
   const lv = AD.querySelector("#lvup"), lu = t >= 50.6 && t < 53.8 ? Math.min(1, (t - 50.6) / 0.35, (53.8 - t) / 0.5) : 0;
@@ -173,10 +176,11 @@ const SPOT = {
   appBar: { x: 1500, y: 60 }, fig1: { x: 1440, y: 90 }, fig2: { x: 1440, y: 90 }, phone: { x: 1640, y: 110 }, end: { x: 1330, y: 340 },
 };
 const MS = [
-  [0, 1.8, null, null, "hidden"], [1.8, 2.4, SPOT.caret, SPOT.caret, "emerge"], [2.4, 6.4, SPOT.caret, SPOT.caret, "hold"], [6.4, 7.4, SPOT.caret, SPOT.appBar, "jump"],
-  [7.4, 34.6, SPOT.appBar, SPOT.appBar, "hold"], [34.6, 35.6, SPOT.appBar, SPOT.fig1, "jump"], [35.6, 42.8, SPOT.fig1, SPOT.fig1, "hold"], [42.8, 43.8, SPOT.fig1, SPOT.appBar, "jump"],
-  [43.8, 58.2, SPOT.appBar, SPOT.appBar, "hold"], [58.2, 59.2, SPOT.appBar, SPOT.fig2, "jump"], [59.2, 66.8, SPOT.fig2, SPOT.fig2, "hold"], [66.8, 67.8, SPOT.fig2, SPOT.appBar, "jump"],
-  [67.8, 72.6, SPOT.appBar, SPOT.appBar, "hold"], [72.6, 73.6, SPOT.appBar, SPOT.phone, "jump"], [73.6, 76.8, SPOT.phone, SPOT.phone, "hold"], [76.8, 77.8, SPOT.phone, SPOT.end, "jump"], [77.8, DUR, SPOT.end, SPOT.end, "hold"],
+  [0, 1.6, null, null, "hidden"], [1.6, 2.2, SPOT.caret, SPOT.caret, "emerge"], [2.2, 5.0, SPOT.caret, SPOT.caret, "hold"], [5.0, 6.0, SPOT.caret, SPOT.fig1, "jump"],
+  [6.0, 20.4, SPOT.fig1, SPOT.fig1, "hold"], [20.4, 21.4, SPOT.fig1, SPOT.appBar, "jump"], [21.4, 30.8, SPOT.appBar, SPOT.appBar, "hold"], [30.8, 31.8, SPOT.appBar, SPOT.fig1, "jump"],
+  [31.8, 39.2, SPOT.fig1, SPOT.fig1, "hold"], [39.2, 40.2, SPOT.fig1, SPOT.appBar, "jump"], [40.2, 47.6, SPOT.appBar, SPOT.appBar, "hold"], [47.6, 48.6, SPOT.appBar, SPOT.fig2, "jump"],
+  [48.6, 61.2, SPOT.fig2, SPOT.fig2, "hold"], [61.2, 62.2, SPOT.fig2, SPOT.appBar, "jump"], [62.2, 66.6, SPOT.appBar, SPOT.appBar, "hold"], [66.6, 67.6, SPOT.appBar, SPOT.phone, "jump"],
+  [67.6, 70.2, SPOT.phone, SPOT.phone, "hold"], [70.2, 71.2, SPOT.phone, SPOT.end, "jump"], [71.2, DUR, SPOT.end, SPOT.end, "hold"],
 ];
 function mascotAt(t) {
   const m = MS.find((s) => t >= s[0] && t < s[1]) || MS[MS.length - 1];
@@ -190,11 +194,11 @@ function mascotAt(t) {
   }
   if (kind === "hold") {
     sq = 1 + 0.03 * Math.sin(t * Math.PI * 1.6);
-    if ([4.6, 12.2, 23.1, 33.0, 39.4, 46.3, 61.0, 70.4, 80.0].some((b2) => t > b2 && t < b2 + 0.12)) eyes = "shut";
-    if (t > 25.6 && t < 27.4) { eyes = "wide"; prop = "!"; }
-    if ((t > 30.2 && t < 33.6) || (t > 50.6 && t < 53.6)) { pose = "cheer"; eyes = "happy"; }
-    if (t > 62.4 && t < 65.4) { eyes = "wide"; prop = "!"; }
-    if (t > 81.0) { eyes = "shut"; sq = 0.9; }
+    if ([4.2, 9.8, 16.4, 25.0, 35.0, 43.3, 52.0, 64.4, 73.4].some((b2) => t > b2 && t < b2 + 0.12)) eyes = "shut";
+    if (t > 23.0 && t < 24.6) { eyes = "wide"; prop = "!"; }
+    if ((t > 18.6 && t < 20.2) || (t > 26.6 && t < 30.0) || (t > 46.6 && t < 48.2)) { pose = "cheer"; eyes = "happy"; }
+    if (t > 55.0 && t < 58.4) { eyes = "wide"; prop = "!"; }
+    if (t > 75.0) { eyes = "shut"; sq = 0.9; }
   }
   return { x, y, sq, pose, eyes, prop };
 }
@@ -225,29 +229,45 @@ for (const l of LINES) {
   merged.forEach((p, i) => { const dd = (p.length / tot) * VO[l.id]; CAPS.push({ t0: at, t1: at + dd + (i === merged.length - 1 ? 0.7 : 0.25), text: p.trim() }); at += dd; });
 }
 for (let i = 0; i < CAPS.length - 1; i++) CAPS[i].t1 = Math.min(CAPS[i].t1, CAPS[i + 1].t0);
-const CHAPTERS = [[7.4, 19.6, "1 · Forge"], [19.6, 35.0, "2 · Deploy"], [35.0, 43.2, "3 · The work"], [43.2, 55.0, "4 · Prove"], [55.0, 67.2, "5 · Trust"], [67.2, 77.0, "6 · Worlds"]];
+window.CAPS = CAPS;
+const CHAPTERS = [[5.8, 21.0, "Fig 1 · The Forge"], [21.0, 31.4, "Live · Deploy"], [31.4, 39.8, "Fig 2 · The dispatch line"], [39.8, 48.4, "Live · Prove"], [48.4, 61.8, "Fig 3 · Trust credits"], [61.8, 70.4, "Live · Worlds"]];
 
 // ---------------------------------------------------------------- render
 const cam = document.getElementById("cam"), ghost = document.getElementById("ghost"), gcv = ghost.querySelector("canvas"), cursorEl = document.getElementById("cursor"), vig = document.getElementById("vig").getContext("2d");
-const term = document.getElementById("term"), app = document.getElementById("app"), fig1 = document.getElementById("fig1"), fig2 = document.getElementById("fig2"), phone = document.getElementById("phone");
+const term = document.getElementById("term"), app = document.getElementById("app"), fig0 = document.getElementById("fig0"), fig1 = document.getElementById("fig1"), fig2 = document.getElementById("fig2"), phone = document.getElementById("phone");
 const endEl = document.getElementById("endcard"), captionEl = document.getElementById("caption"), chapterEl = document.getElementById("chapter"), appsub = document.getElementById("appsub");
 const show = (el, v, dy = 50) => { el.style.opacity = v; el.style.transform = `translateY(${(1 - v) * dy}px)`; el.style.visibility = v > 0.01 ? "visible" : "hidden"; };
 const fade = (t, a, b, c, d) => (t < a ? 0 : t < b ? eo(seg(t, a, b)) : t < c ? 1 : t < d ? 1 - eio(seg(t, c, d)) : 0);
+// figure windows: a slow push-in on each figure
+const FIGS = [[5.6, 21.2, 0], [31.2, 40.0, 1], [48.2, 62.0, 2]];
+const figCam = (t, a, b) => { const u = seg(t, a, b); return { x: 960 + 16 * u, y: 560 - 10 * u, z: 1.12 + 0.1 * u, speed: 0 }; };
+function camNow(t) {
+  const src = srcOf(t), f = FIGS.find(([a, b]) => t >= a - 0.3 && t < b + 0.3);
+  let c = src != null ? camAt(src) : f ? figCam(t, f[0], f[1]) : { x: 960, y: 540, z: 1, speed: 0 };
+  // blend across each cut so the camera never jumps
+  for (const [a] of SEGS.slice(1)) if (t >= a - 0.6 && t < a + 0.6) { const prev = figCam(a - 0.3, 0, 1), next = camAt(a + 0.6 + SEGS.find((s) => s[0] === a)[2]); const u = eio(seg(t, a - 0.6, a + 0.6)); c = { x: lerp(prev.x, next.x, u), y: lerp(prev.y, next.y, u), z: lerp(prev.z, next.z, u), speed: 0 }; }
+  for (const [a] of FIGS) if (t >= a - 0.6 && t < a + 0.4 && a > 1) { const s0 = SEGS.find(([x, y]) => a > x && a <= y + 0.5); if (s0) { const prev = camAt(Math.min(s0[1], a - 0.6) + s0[2]); const u = eio(seg(t, a - 0.6, a + 0.4)); c = { x: lerp(prev.x, 960, u), y: lerp(prev.y, 560, u), z: lerp(prev.z, 1.12, u), speed: 0 }; } }
+  if (t >= 70.4) c = { x: 960, y: 540, z: 1, speed: 0 };
+  return c;
+}
 let ghostWho = "";
 window.render = (t) => {
-  applyApp(t); applyPhone(t);
-  const c = camAt(t);
+  const src = srcOf(t);
+  const appSrc = src != null ? src : t < 39.8 ? 34.0 : t < 61.8 ? 52.4 : 75.0;
+  applyApp(appSrc); applyPhone(t);
+  const c = camNow(t);
   cam.style.transform = `translate(${960 - c.x * c.z}px,${540 - c.y * c.z}px) scale(${c.z})`;
-  const blur = Math.min(6, c.speed / 900); document.getElementById("blurwrap").style.filter = blur > 0.6 ? `blur(${blur.toFixed(2)}px)` : "none";
-  show(term, t < 6.6 ? 1 : 1 - eio(seg(t, 6.6, 7.3)), 60); termAt(t);
-  show(app, Math.max(fade(t, 6.4, 7.2, 34.8, 35.5), fade(t, 42.9, 43.6, 58.1, 58.8), fade(t, 66.6, 67.3, 76.9, 77.6)), 0);
-  show(fig1, fade(t, 34.9, 35.7, 42.8, 43.4)); show(fig2, fade(t, 58.2, 59.0, 66.7, 67.3));
-  show(phone, fade(t, 72.4, 73.3, 76.8, 77.5), 120);
-  if (fig1F.contentWindow.figAt) fig1F.contentWindow.figAt(clamp((t - 35.6) * 1.18, 0, 12.9), false, t > 42 ? 3 : 2);
-  if (fig2F.contentWindow.figAt) fig2F.contentWindow.figAt(Math.min(19.6, 13.4 + Math.max(0, t - 59.0) * 1.55));
-  appsub.textContent = t >= 67.2 && t < 77.6 ? ["· Neon City", "· Sky Islands", "· Star Fleet"][t < 69.2 ? 0 : t < 71.0 ? 1 : 2] + " · 127.0.0.1 · my-project" : "· Guild · 127.0.0.1 · my-project";
-  // cursor and the dragged token (with the hero's own sprite)
-  const cu = cursorAt(t), on = cu && CURSOR_ON(t);
+  document.getElementById("blurwrap").style.filter = "none";
+  show(term, t < 5.4 ? 1 : 1 - eio(seg(t, 5.4, 6.0)), 60); termAt(Math.min(t + 0.4, 6.2));
+  show(app, Math.max(fade(t, 20.8, 21.4, 31.0, 31.6), fade(t, 39.4, 40.0, 48.0, 48.6), fade(t, 61.4, 62.0, 70.2, 70.8)), 0);
+  show(fig0, fade(t, 5.5, 6.2, 20.8, 21.4)); show(fig1, fade(t, 31.0, 31.7, 39.6, 40.2)); show(fig2, fade(t, 48.0, 48.7, 61.6, 62.2));
+  show(phone, fade(t, 66.4, 67.2, 70.2, 70.8), 120);
+  if (fig0F.contentWindow.figAt) fig0F.contentWindow.figAt(clamp((t - 6.0) * 0.98, 0, 14.3), false);
+  if (fig1F.contentWindow.figAt) fig1F.contentWindow.figAt(clamp((t - 31.6) * 1.5, 0, 12.9), false, t > 38 ? 3 : 2);
+  const f3 = t < 55.6 ? 6.0 + Math.max(0, t - 48.6) * 1.93 : t < 58.4 ? 19.6 : 19.6 + (t - 58.4) * 1.5;
+  if (fig2F.contentWindow.figAt) fig2F.contentWindow.figAt(Math.min(f3, 24.6));
+  appsub.textContent = appSrc >= 67.2 ? ["· Neon City", "· Sky Islands", "· Star Fleet"][appSrc < 69.2 ? 0 : appSrc < 71.0 ? 1 : 2] + " · 127.0.0.1 · my-project" : "· Guild · 127.0.0.1 · my-project";
+  const cu = src != null ? cursorAt(src) : null, on = cu && CURSOR_ON(src) && ((t > 21.2 && t < 29.6) || (t > 40.0 && t < 46.2));
   cursorEl.style.display = on ? "block" : "none";
   if (on) cursorEl.style.transform = `translate(${cu.x}px,${cu.y}px) scale(${(cu.s || 1) / c.z * 1.25})`;
   if (on && cu.ghost) {
@@ -255,33 +275,41 @@ window.render = (t) => {
     ghost.style.display = "flex"; ghost.style.left = cu.x + 30 + "px"; ghost.style.top = cu.y + 26 + "px";
   } else ghost.style.display = "none";
   drawMascot(mascotAt(t));
-  // spotlight on the readiness ring once it is green, and on the cage in the trust figure
   vig.clearRect(0, 0, 1920, 1080);
-  const vs = t > 29.6 && t < 31.2 ? Math.min(1, (t - 29.6) / 0.4, (31.2 - t) / 0.4) : 0;
+  const vs = src != null && src > 29.6 && src < 31.2 ? Math.min(1, (src - 29.6) / 0.4, (31.2 - src) / 0.4) : 0;
   if (vs > 0) { const p = { x: 960 + (A.ring.x - c.x) * c.z, y: 540 + (A.ring.y - c.y) * c.z }; const g = vig.createRadialGradient(p.x, p.y, 110, p.x, p.y, 700); g.addColorStop(0, "rgba(0,0,0,0)"); g.addColorStop(1, `rgba(0,0,0,${0.55 * vs})`); vig.fillStyle = g; vig.fillRect(0, 0, 1920, 1080); }
-  const eIn = t < 77.4 ? 0 : eo(seg(t, 77.4, 78.2)); endEl.style.opacity = eIn; endEl.style.transform = `translate(-50%,-50%) scale(${0.96 + 0.04 * eIn})`;
+  const eIn = t < 70.6 ? 0 : eo(seg(t, 70.6, 71.4)); endEl.style.opacity = eIn; endEl.style.transform = `translate(-50%,-50%) scale(${0.96 + 0.04 * eIn})`;
   const ch = CHAPTERS.find(([a, b]) => t >= a && t < b); chapterEl.style.opacity = ch ? Math.min(1, (t - ch[0]) / 0.4, (ch[1] - t) / 0.4) : 0; if (ch && chapterEl.textContent !== ch[2]) chapterEl.textContent = ch[2];
   const cap = CAPS.find((x) => t >= x.t0 && t < x.t1); captionEl.style.opacity = cap ? 1 : 0; if (captionEl.textContent !== (cap ? cap.text : "")) captionEl.textContent = cap ? cap.text : "";
 };
 
-// ---------------------------------------------------------------- events for the mixer
+// ---------------------------------------------------------------- events for the mixer (on this film's clock)
 const EV = [];
 for (const [id, t] of Object.entries(AT)) EV.push({ t, type: "vo", id });
-for (const [t0, s, cps] of [[1.1, T1, 28], [3.5, T2, 28], [12.1, NAME, 12.5], [44.8, PROOF.pr, 30], [46.2, PROOF.tests, 26], [47.9, PROOF.op, 26]]) for (let t = t0; t < t0 + s.length / cps; t += 1 / 12) EV.push({ t, type: "key" });
-EV.push({ t: 1.8, type: "chip", note: 76 }, { t: 2.8, type: "enter" }, { t: 5.3, type: "enter" }, { t: 6.6, type: "whoosh" });
-for (const [t] of CLICKS) EV.push({ t, type: "click" });
-for (let i = 0; i < 6; i++) EV.push({ t: 15.0 + i * 0.5, type: "fit", i });
-EV.push({ t: 19.6, type: "join" });
-for (const d of DRAGS) EV.push({ t: d[0] - 0.05, type: "click" }, { t: d[1], type: d[5] ? "buzz" : "place" });
-EV.push({ t: 29.9, type: "green" }, { t: 31.5, type: "horn" }, { t: 34.8, type: "whoosh" });
-const ft = (x) => 35.6 + x / 1.18;
-EV.push({ t: ft(1.0 + 0.9 + 1.8 * 0.25), type: "press" }, { t: ft(1.0 + 0.9 + 1.8 * 0.7), type: "press" }, { t: ft(5.3 + 0.3), type: "probe" }, { t: ft(9.23), type: "stamp" }, { t: 42.8, type: "whoosh" });
-EV.push({ t: 49.9, type: "coin" }, { t: 50.6, type: "level" }, { t: 56.6, type: "buzz" }, { t: 58.2, type: "whoosh" });
-const f2 = (x) => 59.0 + (x - 13.4) / 1.55;   // trust figure clock → film clock
-EV.push({ t: f2(15.4 + 0.3), type: "stamp" }, { t: f2(17.6 + 0.6), type: "buzz" }, { t: f2(19.3), type: "cage" }, { t: 66.7, type: "whoosh" });
-EV.push({ t: 67.4, type: "world" }, { t: 69.2, type: "world" }, { t: 71.0, type: "world" }, { t: 72.4, type: "whoosh" }, { t: 77.2, type: "chime" });
+const inv = (src, segi) => src - SEGS[segi][2];
+for (const [t0, s, cps] of [[1.1, T1, 28], [3.5, T2, 28]]) for (let t = t0 - 0.4; t < t0 - 0.4 + s.length / cps && t < 5.6; t += 1 / 12) EV.push({ t, type: "key" });
+EV.push({ t: 1.4, type: "chip", note: 76 }, { t: 2.4, type: "enter" }, { t: 4.9, type: "enter" }, { t: 5.5, type: "whoosh" });
+// Fig 1: six fits, the gate, out
+const fg = (x) => 6.0 + x / 0.98;
+for (let i = 0; i < 6; i++) EV.push({ t: fg(1.4 + i * 1.7 + 0.6 + 0.5 * 1.1 * 0.45 + 0.2), type: "fit", i });
+EV.push({ t: fg(1.4 + 10.2 + 0.8 + 0.1), type: "green" }, { t: fg(1.4 + 10.2 + 0.8 + 1.0 + 0.1), type: "place" }, { t: 20.8, type: "whoosh" });
+// live deploy (src 23.6–34.0)
+for (const d of DRAGS) if (d[0] > 23.6 && d[1] < 34) EV.push({ t: inv(d[0] - 0.05, 1), type: "click" }, { t: inv(d[1], 1), type: d[5] ? "buzz" : "place" });
+EV.push({ t: inv(29.9, 1), type: "green" }, { t: inv(31.4, 1), type: "click" }, { t: inv(31.5, 1), type: "horn" }, { t: 31.0, type: "whoosh" });
+// Fig 2
+const f1 = (x) => 31.6 + x / 1.5;
+EV.push({ t: f1(1.0 + 0.9 + 1.8 * 0.25), type: "press" }, { t: f1(1.0 + 0.9 + 1.8 * 0.7), type: "press" }, { t: f1(5.3 + 0.3), type: "probe" }, { t: f1(9.23), type: "stamp" }, { t: 39.5, type: "whoosh" });
+// live prove (src 43.8–52.4)
+for (const [t0, str, cps] of [[44.8, PROOF.pr, 30], [46.2, PROOF.tests, 26], [47.9, PROOF.op, 26]]) for (let t = t0; t < t0 + str.length / cps; t += 1 / 12) EV.push({ t: inv(t, 2), type: "key" });
+EV.push({ t: inv(44.3, 2), type: "click" }, { t: inv(49.8, 2), type: "click" }, { t: inv(49.9, 2), type: "coin" }, { t: inv(50.6, 2), type: "level" }, { t: 48.0, type: "whoosh" });
+// Fig 3: each quest outcome, the cage
+const f3t = (x) => (x <= 19.6 ? 48.6 + (x - 6.0) / 1.93 : 58.4 + (x - 19.6) / 1.5);
+for (let i = 3; i < 11; i++) { const x = i * 2.2 + 0.6; const o = ["S","S","S","C","B","E","S","E","E","R","S","S"][i]; if (x > 6 && x < 24.6) EV.push({ t: f3t(x), type: o === "B" || o === "E" ? "buzz" : o === "R" ? "chime" : "stamp" }); }
+EV.push({ t: f3t(19.3), type: "cage" }, { t: 61.6, type: "whoosh" });
+// live worlds (src 67.0–75.8)
+EV.push({ t: inv(67.4, 3), type: "world" }, { t: inv(69.2, 3), type: "world" }, { t: inv(71.0, 3), type: "world" }, { t: 66.4, type: "whoosh" }, { t: 70.6, type: "chime" });
 for (const m of MS) if (m[4] === "jump") EV.push({ t: m[0] + 0.12, type: "jump" }, { t: m[1] - 0.08, type: "land" });
-window.EV = EV.sort((a, b) => a.t - b.t);
+window.EV = EV.filter((e) => e.t >= 0 && e.t < DUR).sort((a, b) => a.t - b.t);
 window.DUR = DUR;
 window.TEXTS = () => [];
 window.READY = true;
