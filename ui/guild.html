@@ -1,0 +1,889 @@
+<title>Agent Company Guild</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;800&family=Bungee&family=Press+Start+2P&family=Orbitron:wght@600;800&family=Alegreya+Sans:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* A guild hall in four rooms: the Forge (make a hero and fit the OpenProof harness), the War Map (drag heroes onto posts and quests),
+   the Proving Ground (a returned quest earns XP only with proof) and the Training Hall (levels, talents, lessons). Dark by default, parchment in light. */
+:root{
+  --night:#0d0b09; --stone:#1a1611; --stone-2:#231d16; --stone-3:#2d251b; --edge:#4a3b26; --edge-2:#6b552f;
+  --gold:#e3b75a; --gold-2:#ffd98a; --ink:#f1e6cf; --dim:#bba98a; --faint:#8a7a60;
+  --ok:#7fd18b; --warn:#f0b54a; --bad:#ec6b5b; --proof:#59d4c4; --xp:#a879ff;
+  --paper:#2a2116; --map:#1c2418;
+  --display:"Cinzel",Georgia,serif; --body:"Alegreya Sans",system-ui,-apple-system,"Segoe UI",sans-serif; --mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+  color-scheme:dark;
+}
+@media (prefers-color-scheme:light){:root:not([data-theme="dark"]){
+  --night:#e9dcc0; --stone:#f4ead3; --stone-2:#efe2c4; --stone-3:#e6d6b2; --edge:#b99b62; --edge-2:#94763c;
+  --gold:#9a6a12; --gold-2:#6e4a08; --ink:#2b2011; --dim:#5e4c30; --faint:#86704c;
+  --ok:#2f7d3c; --warn:#9a6200; --bad:#b03a2c; --proof:#0f7f73; --xp:#6a3fc4; --paper:#f3e6c6; --map:#e2dcb8; color-scheme:light}}
+:root[data-theme="light"]{
+  --night:#e9dcc0; --stone:#f4ead3; --stone-2:#efe2c4; --stone-3:#e6d6b2; --edge:#b99b62; --edge-2:#94763c;
+  --gold:#9a6a12; --gold-2:#6e4a08; --ink:#2b2011; --dim:#5e4c30; --faint:#86704c;
+  --ok:#2f7d3c; --warn:#9a6200; --bad:#b03a2c; --proof:#0f7f73; --xp:#6a3fc4; --paper:#f3e6c6; --map:#e2dcb8; color-scheme:light}
+*{box-sizing:border-box}
+html,body{background:var(--night);color:var(--ink);margin:0}
+body{font:400 15.5px/1.45 var(--body);padding:18px max(16px,env(safe-area-inset-right,0px)) 60px max(16px,env(safe-area-inset-left,0px));
+  background-image:radial-gradient(1200px 700px at 50% -10%,rgba(227,183,90,.12),transparent 70%)}
+h1,h2,h3,h4{font-family:var(--display);margin:0;letter-spacing:.03em;text-wrap:balance}
+.wrap{max-width:1320px;margin:0 auto}
+button,select,input,textarea{font:inherit;color:var(--ink)}
+button{cursor:pointer;background:linear-gradient(var(--stone-3),var(--stone-2));border:1px solid var(--edge);border-radius:8px;padding:8px 14px;font-weight:700}
+button:hover{border-color:var(--gold)} :focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+button.gold{background:linear-gradient(#f2cd78,#c9912f);color:#20160a;border-color:#f6d98f;text-shadow:0 1px 0 rgba(255,255,255,.3)}
+button:disabled{opacity:.45;cursor:not-allowed}
+input,select,textarea{width:100%;background:var(--stone);border:1px solid var(--edge);border-radius:8px;padding:8px 10px}
+textarea{min-height:58px;resize:vertical}
+label.f{display:block;font-size:13px;color:var(--dim);margin:10px 0 4px}
+.muted{color:var(--dim)} .tiny{font-size:12.5px;color:var(--faint)}
+/* frame: a gold-trimmed stone panel */
+.frame{position:relative;background:linear-gradient(180deg,var(--stone-2),var(--stone));border:1px solid var(--edge);border-radius:14px;padding:16px;box-shadow:inset 0 0 0 3px var(--stone),inset 0 0 0 4px var(--edge-2),0 18px 40px rgba(0,0,0,.35);min-width:0}
+.frame>h2{font-size:19px;color:var(--gold);margin-bottom:10px;display:flex;justify-content:space-between;gap:10px;align-items:baseline;flex-wrap:wrap}
+.frame>h2 small{font:500 13px var(--body);color:var(--faint);letter-spacing:0}
+/* header and tabs */
+header{display:flex;flex-wrap:wrap;gap:12px 24px;align-items:flex-end;justify-content:space-between;margin-bottom:14px}
+header h1{font-size:clamp(26px,4.4vw,42px);font-weight:800;line-height:1;background:linear-gradient(#ffe7a8,#c8902e);-webkit-background-clip:text;background-clip:text;color:transparent}
+header p{margin:6px 0 0;color:var(--dim);max-width:70ch}
+.hbar{display:flex;gap:8px;flex-wrap:wrap}
+nav.tabs{display:flex;gap:6px;flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;margin:0 0 16px;border-bottom:1px solid var(--edge);padding-bottom:0}
+nav.tabs button{flex:none;border-radius:10px 10px 0 0;border-bottom:none;padding:10px 16px;font-family:var(--display);font-size:15px;letter-spacing:.04em;color:var(--dim);background:var(--stone)}
+nav.tabs button[aria-selected="true"]{color:var(--gold-2);background:linear-gradient(var(--stone-3),var(--stone-2));border-color:var(--gold)}
+nav.tabs .n{display:inline-grid;place-items:center;width:20px;height:20px;border-radius:50%;background:var(--edge);color:var(--ink);font:700 11px var(--body);margin-right:6px}
+section.room{display:none} section.room.on{display:block}
+/* sprites */
+canvas.spr{image-rendering:pixelated;display:block}
+/* ============ FORGE ============ */
+.forge{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(300px,.9fr);gap:16px}
+@media (max-width:980px){.forge{grid-template-columns:minmax(0,1fr)}}
+.steps{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+.steps span{font:700 12px var(--body);letter-spacing:.08em;text-transform:uppercase;padding:5px 10px;border-radius:20px;border:1px solid var(--edge);color:var(--faint)}
+.steps span.on{color:#20160a;background:var(--gold);border-color:var(--gold)} .steps span.done{color:var(--gold);border-color:var(--gold)}
+.classes{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+.cls{display:flex;flex-direction:column;align-items:center;gap:4px;text-align:center;padding:10px 8px;border:1px solid var(--edge);border-radius:12px;background:var(--stone);cursor:pointer}
+.cls[aria-pressed="true"]{border-color:var(--gold);box-shadow:0 0 0 2px var(--gold) inset,0 0 22px rgba(227,183,90,.25)}
+.cls b{font-family:var(--display);font-size:15px} .cls small{color:var(--dim);font-size:12.5px;line-height:1.25}
+.cls .role{font:600 11px var(--body);letter-spacing:.1em;text-transform:uppercase;color:var(--faint)}
+.chips{display:flex;gap:8px;flex-wrap:wrap}
+.chip{padding:7px 12px;border-radius:20px;border:1px solid var(--edge);background:var(--stone);font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:8px}
+.chip i{width:12px;height:12px;border-radius:50%;display:block}
+.chip[aria-pressed="true"]{border-color:var(--gold);color:var(--gold-2);background:var(--stone-3)}
+.swatches{display:flex;gap:8px;flex-wrap:wrap}
+.sw{width:34px;height:34px;border-radius:8px;border:2px solid var(--edge);cursor:pointer;padding:0}
+.sw[aria-pressed="true"]{border-color:var(--gold);box-shadow:0 0 0 2px var(--night),0 0 0 4px var(--gold)}
+.preview{display:flex;flex-direction:column;align-items:center;gap:8px}
+.pedestal{position:relative;width:100%;display:grid;place-items:center;padding:18px 0 8px;background:radial-gradient(200px 120px at 50% 85%,rgba(227,183,90,.22),transparent 70%)}
+.pedestal::after{content:"";position:absolute;bottom:10px;width:190px;height:20px;border-radius:50%;background:radial-gradient(rgba(0,0,0,.45),transparent 70%)}
+.pname{font-family:var(--display);font-size:24px;color:var(--gold-2);text-align:center}
+.ptag{color:var(--dim);text-align:center;font-size:14px}
+.gear{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:10px}
+.piece{display:flex;gap:10px;align-items:flex-start;padding:10px;border:1px solid var(--edge);border-radius:12px;background:var(--stone)}
+.piece .ic{flex:none;width:44px;height:44px;border-radius:10px;display:grid;place-items:center;background:var(--stone-3);border:1px solid var(--edge)}
+.piece.fit{border-color:var(--proof);box-shadow:inset 0 0 0 1px var(--proof)}
+.piece.fit .ic{border-color:var(--proof);background:rgba(89,212,196,.12)}
+.piece b{font-family:var(--display);font-size:14px;display:block}
+.piece p{margin:2px 0 6px;font-size:13px;color:var(--dim)}
+.piece .st{font:700 11px var(--body);letter-spacing:.1em;text-transform:uppercase;color:var(--faint)} .piece.fit .st{color:var(--proof)}
+.allow{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.allow label{display:inline-flex;gap:5px;align-items:center;font-size:12.5px;padding:3px 8px;border:1px solid var(--edge);border-radius:14px;cursor:pointer}
+.allow input{width:auto;margin:0}
+.vows{list-style:none;padding:0;margin:0;display:grid;gap:8px}
+.vows li{padding:10px 12px;border-left:3px solid var(--gold);background:var(--stone);border-radius:0 10px 10px 0}
+.vows b{font-family:var(--display);color:var(--gold-2)}
+.nav2{display:flex;justify-content:space-between;gap:8px;margin-top:14px;flex-wrap:wrap}
+.statrow{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;width:100%}
+.stat{background:var(--stone);border:1px solid var(--edge);border-radius:10px;padding:8px;text-align:center}
+.stat b{display:block;font-family:var(--display);font-size:18px;color:var(--gold-2)} .stat span{font-size:12px;color:var(--faint)}
+/* ============ WAR MAP ============ */
+.mapgrid{display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:16px}
+@media (max-width:1060px){.mapgrid{grid-template-columns:minmax(0,1fr)}}
+.map{position:relative;border-radius:14px;overflow:hidden;border:1px solid var(--edge);background:var(--map);min-height:560px;padding:16px;
+  box-shadow:inset 0 0 120px rgba(0,0,0,.45)}
+.map svg.terrain{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;opacity:.9}
+.locs{position:relative;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+@media (max-width:760px){.locs{grid-template-columns:minmax(0,1fr)}}
+.loc{background:color-mix(in srgb,var(--stone) 88%,transparent);border:1px solid var(--edge);border-radius:12px;padding:10px 12px;backdrop-filter:blur(2px);min-width:0}
+.loc h3{font-size:16px;color:var(--gold-2);display:flex;gap:8px;align-items:center}
+.loc h3 em{margin-left:auto;font:600 11px var(--body);font-style:normal;color:var(--faint);letter-spacing:.06em;text-transform:uppercase}
+.loc p{margin:2px 0 8px;font-size:13px;color:var(--dim)}
+.quests{grid-column:1/-1;display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:14px}
+.quest{position:relative}
+.quest .qhead{display:flex;gap:10px;align-items:flex-start}
+.quest .qnum{font:700 12px var(--mono);color:var(--gold)}
+.quest h3{font-size:16px;margin:1px 0 3px}
+.quest .br{font:400 12px var(--mono);color:var(--dim);overflow-wrap:anywhere}
+.badge{font:700 10.5px var(--body);letter-spacing:.1em;text-transform:uppercase;padding:3px 8px;border-radius:12px;border:1px solid var(--edge);white-space:nowrap}
+.b-planned{color:var(--faint)} .b-deployed{color:var(--warn);border-color:var(--warn)} .b-returned{color:var(--xp);border-color:var(--xp)} .b-proven{color:var(--proof);border-color:var(--proof)}
+.qacts{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px} .qacts button{padding:5px 10px;font-size:13px}
+.slots{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.slot{position:relative;min-height:64px;border:1.5px dashed var(--edge-2);border-radius:10px;padding:14px 6px 6px;display:flex;flex-wrap:wrap;gap:6px;align-content:flex-start;transition:border-color .15s,background .15s}
+.slot::before{content:attr(data-name);position:absolute;left:8px;top:2px;font:700 10px var(--body);letter-spacing:.1em;text-transform:uppercase;color:var(--faint)}
+.slot.hot{border-color:var(--gold);background:rgba(227,183,90,.1)}
+.slot.nope{border-color:var(--bad);background:rgba(236,107,91,.12);animation:shake .3s}
+@keyframes shake{25%{transform:translateX(-3px)}75%{transform:translateX(3px)}}
+.tok{display:flex;align-items:center;gap:6px;padding:3px 8px 3px 3px;border-radius:9px;background:var(--stone-3);border:1px solid var(--edge);font-size:12.5px;font-weight:700;cursor:grab;touch-action:none;user-select:none;max-width:100%}
+.tok canvas{width:26px;height:29px;background:var(--stone);border-radius:6px}
+.tok .lv{font:700 10px var(--body);color:var(--xp)}
+/* roster tray */
+.tray{display:flex;gap:10px;overflow-x:auto;padding:4px 2px 10px;scroll-snap-type:x proximity}
+.hero{flex:none;width:118px;scroll-snap-align:start;display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px 6px;border:1px solid var(--edge);border-radius:12px;background:var(--stone);cursor:grab;touch-action:none;user-select:none;position:relative}
+.hero canvas{width:72px;height:80px}
+.hero b{font-family:var(--display);font-size:13px;text-align:center;line-height:1.1;overflow-wrap:anywhere}
+.hero small{font-size:11.5px;color:var(--dim);text-align:center;line-height:1.2}
+.hero .lvl{position:absolute;top:6px;left:6px;width:26px;height:26px;border-radius:50%;display:grid;place-items:center;font:800 12px var(--display);color:#20160a;background:radial-gradient(#ffe39a,#c8902e);box-shadow:0 0 0 2px var(--stone)}
+.hero .tp{position:absolute;top:6px;right:6px;font:800 11px var(--body);color:var(--xp)}
+.xpbar{width:100%;height:6px;border-radius:4px;background:var(--stone-3);overflow:hidden;border:1px solid var(--edge)}
+.xpbar i{display:block;height:100%;background:linear-gradient(90deg,#7c4dff,#c39bff)}
+.ghost{position:fixed;z-index:50;pointer-events:none;transform:translate(-50%,-50%) rotate(-3deg);box-shadow:0 18px 40px rgba(0,0,0,.5);opacity:.95}
+/* readiness */
+.ring{--p:0;--c:var(--bad);width:110px;height:110px;border-radius:50%;display:grid;place-items:center;flex:none;
+  background:conic-gradient(var(--c) calc(var(--p)*1%),var(--stone-3) 0);position:relative}
+.ring::after{content:"";position:absolute;inset:10px;border-radius:50%;background:var(--stone-2)}
+.ring b{position:relative;z-index:1;font:800 26px var(--display)}
+.ready{display:flex;gap:14px;align-items:center;margin-bottom:10px}
+.ready h3{font-size:18px} .ready p{margin:2px 0 0;color:var(--dim);font-size:13.5px}
+ul.checks{list-style:none;margin:0;padding:0;display:grid;gap:5px;max-height:330px;overflow:auto}
+ul.checks li{display:flex;gap:8px;font-size:13.5px;line-height:1.3}
+ul.checks i{flex:none;width:9px;height:9px;border-radius:50%;margin-top:5px}
+li.ok i{background:var(--ok)} li.warn i{background:var(--warn)} li.bad i{background:var(--bad)}
+.files{margin-top:12px;display:none} .files.open{display:block}
+.ftabs{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:6px} .ftabs button{font:500 11.5px var(--mono);padding:4px 7px}
+.ftabs button[aria-pressed="true"]{border-color:var(--gold);color:var(--gold-2)}
+pre.fbody{margin:0;max-height:300px;overflow:auto;background:var(--night);border:1px solid var(--edge);border-radius:10px;padding:10px;font:400 12px/1.5 var(--mono);white-space:pre-wrap;overflow-wrap:anywhere}
+/* ============ PROVING GROUND / TRAINING ============ */
+.two{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px}
+@media (max-width:900px){.two{grid-template-columns:minmax(0,1fr)}}
+.seal{display:inline-flex;align-items:center;gap:6px;color:var(--proof);font-weight:700}
+.ledger{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.ledger li{padding:9px 11px;border:1px solid var(--edge);border-radius:10px;background:var(--stone);font-size:14px}
+.ledger li .x{color:var(--xp);font-weight:800}
+.sheet{display:grid;grid-template-columns:150px minmax(0,1fr);gap:14px;align-items:start}
+@media (max-width:560px){.sheet{grid-template-columns:minmax(0,1fr)}}
+.sheet canvas{width:150px;height:166px;background:radial-gradient(circle at 50% 80%,rgba(227,183,90,.18),transparent 70%);border-radius:12px;border:1px solid var(--edge)}
+.tree{display:grid;gap:10px;margin-top:6px}
+.tier{display:grid;grid-template-columns:52px 1fr 1fr;gap:8px;align-items:stretch}
+.tier .t{font:800 12px var(--display);color:var(--faint);display:grid;place-items:center;border:1px solid var(--edge);border-radius:10px}
+.tal{text-align:left;padding:8px 10px;border-radius:10px;border:1px solid var(--edge);background:var(--stone);font-weight:400}
+.tal b{display:block;font-family:var(--display);font-size:13.5px}
+.tal span{font-size:12.5px;color:var(--dim)}
+.tal.have{border-color:var(--xp);box-shadow:inset 0 0 0 1px var(--xp)} .tal.have b{color:var(--xp)}
+.tal.can{border-color:var(--gold);animation:glow 1.6s ease-in-out infinite}
+@keyframes glow{50%{box-shadow:0 0 18px rgba(227,183,90,.45)}}
+.tal.locked{opacity:.45}
+.heroes-list{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.heroes-list button{display:flex;gap:6px;align-items:center;padding:4px 10px 4px 4px;font-size:13px}
+.heroes-list button canvas{width:26px;height:29px}
+.heroes-list button[aria-pressed="true"]{border-color:var(--gold);color:var(--gold-2)}
+/* modal, toast, level-up */
+dialog{background:linear-gradient(var(--stone-2),var(--stone));color:var(--ink);border:1px solid var(--gold);border-radius:16px;padding:18px;max-width:min(620px,calc(100vw - 32px));width:100%}
+dialog::backdrop{background:rgba(0,0,0,.6)}
+.toast{position:fixed;left:50%;bottom:22px;transform:translate(-50%,20px);opacity:0;transition:.25s;background:var(--stone-3);border:1px solid var(--gold);border-radius:12px;padding:10px 16px;z-index:60;font-weight:600;max-width:calc(100vw - 32px);text-align:center}
+.toast.on{opacity:1;transform:translate(-50%,0)}
+.lvup{position:fixed;inset:0;display:grid;place-items:center;pointer-events:none;z-index:70;opacity:0}
+.lvup.on{animation:lv 2.4s ease forwards}
+.lvup div{text-align:center;font-family:var(--display);color:var(--gold-2);text-shadow:0 0 30px rgba(255,200,90,.8),0 4px 0 #6b4a10}
+.lvup b{display:block;font-size:clamp(40px,8vw,84px);font-weight:800} .lvup span{font-size:20px}
+@keyframes lv{0%{opacity:0;transform:scale(.7)}15%{opacity:1;transform:scale(1.05)}25%{transform:scale(1)}80%{opacity:1}100%{opacity:0}}
+@media (prefers-reduced-motion:reduce){.lvup.on{animation:none;opacity:1}.tal.can{animation:none}.slot.nope{animation:none}}
+.note{border:1px dashed var(--edge-2);border-radius:10px;padding:10px 12px;color:var(--dim);font-size:13.5px;margin-top:12px}
+.note b{color:var(--ink)}
+/* worlds picker */
+.worlds{display:flex;gap:10px;overflow-x:auto;padding:2px 2px 12px;margin-bottom:6px}
+.wcard{flex:none;width:170px;border-radius:12px;border:1px solid var(--edge);padding:0;overflow:hidden;text-align:left;background:var(--stone);font-weight:400}
+.wcard svg{display:block;width:100%;height:64px}
+.wcard div{padding:7px 10px 9px}
+.wcard b{display:block;font-family:var(--display);font-size:14px;line-height:1.15}
+.wcard small{color:var(--dim);font-size:12px;line-height:1.2;display:block}
+.wcard[aria-pressed="true"]{border-color:var(--gold);box-shadow:0 0 0 2px var(--gold) inset,0 0 20px color-mix(in srgb,var(--gold) 35%,transparent)}
+/* handheld mode: the app sits in a console shell with a D-pad, A/B, Select and Start */
+.pad{display:none}
+body.handheld{padding:12px max(12px,env(safe-area-inset-right,0px)) 210px max(12px,env(safe-area-inset-left,0px));background:#2b2f3a}
+body.handheld .wrap{max-width:900px;border-radius:18px 18px 42px 18px;padding:14px;background:var(--night);box-shadow:0 0 0 10px #1c1f27,0 0 0 12px #3d4352,inset 0 0 40px rgba(0,0,0,.6)}
+body.handheld .pad{display:flex;position:fixed;left:0;right:0;bottom:0;z-index:40;justify-content:space-between;align-items:center;gap:12px;padding:14px max(20px,env(safe-area-inset-left,0px)) max(18px,env(safe-area-inset-bottom,0px));background:linear-gradient(#323744,#262a33);border-top:2px solid #3d4352}
+.dpad{position:relative;width:132px;height:132px;flex:none}
+.dpad button{position:absolute;width:44px;height:44px;padding:0;border-radius:8px;background:#15171d;border:none;color:#8a90a0;font-size:18px;box-shadow:0 3px 0 #0b0c10}
+.dpad button:active,.ab button:active,.ss button:active{transform:translateY(2px);box-shadow:none}
+.dpad .u{left:44px;top:0}.dpad .d{left:44px;bottom:0}.dpad .l{left:0;top:44px}.dpad .r{right:0;top:44px}
+.dpad i{position:absolute;left:44px;top:44px;width:44px;height:44px;background:#15171d}
+.ab{display:flex;gap:16px;transform:rotate(-18deg);flex:none}
+.ab button{width:62px;height:62px;border-radius:50%;border:none;font:800 20px var(--body);color:#fff;box-shadow:0 4px 0 rgba(0,0,0,.45)}
+.ab .a{background:#d4405a}.ab .b{background:#3f5bd0;margin-top:26px}
+.ss{display:flex;flex-direction:column;gap:10px;align-items:center}
+.ss button{border-radius:20px;padding:6px 14px;font:700 11px var(--body);letter-spacing:.12em;background:#15171d;border:none;color:#a7adbd;box-shadow:0 3px 0 #0b0c10}
+body.handheld header p,body.handheld .wcard small{display:none}
+body.handheld header{margin-bottom:8px}body.handheld .hbar button{padding:5px 9px;font-size:13px}
+body.handheld .wcard{width:130px}body.handheld .toast{bottom:200px}body.handheld .wcard svg{height:44px}
+body.handheld :focus-visible{outline:3px solid var(--gold);outline-offset:3px}
+@media (max-width:420px){.dpad{transform:scale(.85);transform-origin:left center}.ab{transform:rotate(-18deg) scale(.85)}}
+</style>
+
+<div class="wrap">
+<header>
+  <div>
+    <h1 id="w-title">Agent Company · Guild</h1>
+    <p id="w-sub">Forge your agents as heroes, fit each one with the OpenProof harness, and send them on quests from the war map. Heroes level up only on proven work.</p>
+  </div>
+  <div class="hbar">
+    <button id="btn-demo">Load demo guild</button>
+    <button id="btn-export">Export guild</button>
+    <button id="btn-import">Import</button>
+    <button id="btn-hand" aria-pressed="false">Handheld mode</button>
+    <button id="btn-sound" aria-pressed="true">Sound: on</button>
+  </div>
+</header>
+
+<div class="worlds" id="worlds" aria-label="Choose a world"></div>
+<nav class="tabs" role="tablist">
+  <button role="tab" data-room="forge" aria-selected="true"><span class="n">1</span><span data-tab="0">Forge</span></button>
+  <button role="tab" data-room="map" aria-selected="false"><span class="n">2</span><span data-tab="1">War map</span></button>
+  <button role="tab" data-room="prove" aria-selected="false"><span class="n">3</span><span data-tab="2">Proving ground</span></button>
+  <button role="tab" data-room="train" aria-selected="false"><span class="n">4</span><span data-tab="3">Training hall</span></button>
+</nav>
+
+<!-- ================= FORGE ================= -->
+<section class="room on" id="room-forge">
+  <div class="forge">
+    <div class="frame">
+      <h2><span data-lex="forgeH">Forge a hero</span> <small>class, origin, look, harness, vows</small></h2>
+      <div class="steps" id="steps"></div>
+      <div id="fstep"></div>
+      <div class="nav2"><button id="f-back">Back</button><button class="gold" id="f-next">Next</button></div>
+    </div>
+    <div class="frame preview">
+      <h2 style="align-self:stretch">Your hero <small id="p-harness"></small></h2>
+      <div class="pedestal"><canvas class="spr" id="p-spr" width="18" height="20" style="width:216px;height:240px"></canvas></div>
+      <div class="pname" id="p-name">Unnamed</div>
+      <div class="ptag" id="p-tag"></div>
+      <div class="statrow">
+        <div class="stat"><b id="p-lv">1</b><span>Level</span></div>
+        <div class="stat"><b id="p-range">1</b><span>Quests at once</span></div>
+        <div class="stat"><b id="p-gear">0/6</b><span>Harness</span></div>
+      </div>
+      <p class="tiny" id="p-does" style="text-align:center;margin:4px 0 0"></p>
+    </div>
+  </div>
+</section>
+
+<!-- ================= WAR MAP ================= -->
+<section class="room" id="room-map">
+  <div class="frame" style="margin-bottom:14px">
+    <h2><span data-lex="trayH">Your heroes</span> <small>drag onto a post or a slot · tap a hero, then tap a slot · drag a token back here to recall it</small></h2>
+    <div class="tray" id="tray"></div>
+  </div>
+  <div class="mapgrid">
+    <div class="map" id="map">
+      <svg class="terrain" viewBox="0 0 1000 700" preserveAspectRatio="none" aria-hidden="true" id="terrain"></svg>
+      <div class="locs" id="locs"></div>
+    </div>
+    <div>
+      <div class="frame">
+        <h2>Readiness <small id="r-sub"></small></h2>
+        <div class="ready"><div class="ring" id="ring"><b id="pct">0</b></div><div><h3 id="r-title">Not ready</h3><p id="r-hint">Place heroes and add quests.</p></div></div>
+        <ul class="checks" id="checks"></ul>
+        <div class="nav2"><button id="btn-quest" data-lex="newQ">New quest</button><button class="gold" id="btn-horn" data-lex="horn">Sound the horn (deploy)</button></div>
+        <div class="files" id="files">
+          <div class="ftabs" id="ftabs"></div>
+          <pre class="fbody" id="fbody"></pre>
+          <div class="nav2"><button id="btn-copy">Copy this file</button><button class="gold" id="btn-write" hidden>Write to my repo</button></div>
+          <p class="tiny" id="localnote" hidden></p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= PROVING GROUND ================= -->
+<section class="room" id="room-prove">
+  <div class="two">
+    <div class="frame">
+      <h2>Returned quests <small>proof turns work into XP</small></h2>
+      <ul class="ledger" id="returned"></ul>
+      <div class="note"><b>How XP is earned.</b> A quest earns XP only when the owner records proof: the pull request, the tests that ran and an independent verdict. If you add an <span class="seal">◆ OpenProof evidence record</span> (an evidence bundle or Declaration Card that anyone can re-check), the quest is sealed and earns full XP. Without the record it earns half, marked self-reported. Heroes level up on proven work, not on claims.</div>
+    </div>
+    <div class="frame">
+      <h2>Chronicle <small>every award, with its proof</small></h2>
+      <ul class="ledger" id="chron"></ul>
+    </div>
+  </div>
+</section>
+
+<!-- ================= TRAINING HALL ================= -->
+<section class="room" id="room-train">
+  <div class="frame">
+    <h2>Training hall <small>levels unlock talents; lessons come from quests sent back</small></h2>
+    <div class="heroes-list" id="tlist"></div>
+    <div id="tsheet"></div>
+  </div>
+</section>
+</div>
+
+<dialog id="dq">
+  <form method="dialog" id="qform">
+    <h3 style="color:var(--gold-2)">New quest</h3>
+    <label class="f" for="q-title">Quest (what to do)</label><input id="q-title" required placeholder="Add rate limiting to the API">
+    <label class="f" for="q-branch">Branch (its own worktree)</label><input id="q-branch" required placeholder="feat/rate-limit">
+    <label class="f" for="q-words">Owner's words</label><input id="q-words" placeholder="Protect the API before launch">
+    <label class="f" for="q-intent">Intent (why; what must stay true)</label><textarea id="q-intent" placeholder="Every client gets a fair share; no request is dropped silently."></textarea>
+    <label class="f" for="q-tests">Tests to run</label><input id="q-tests" placeholder="rate-limit unit tests, load test">
+    <label class="f" for="q-stop">Stop point</label><input id="q-stop" value="Upload, open a pull request, write the evaluator brief. Don't merge.">
+    <div class="nav2"><button value="cancel" formnovalidate>Cancel</button><button class="gold" value="ok" id="q-ok">Add quest</button></div>
+  </form>
+</dialog>
+
+<dialog id="dp">
+  <form method="dialog" id="pform">
+    <h3 style="color:var(--gold-2)" id="p-title">Prove quest</h3>
+    <p class="tiny" id="p-party"></p>
+    <label class="f" for="pv-pr">Pull request link</label><input id="pv-pr" placeholder="https://github.com/you/repo/pull/12">
+    <label class="f" for="pv-tests">Tests that ran, and the result</label><input id="pv-tests" placeholder="rate-limit 24 passed; full suite 1,120 passed">
+    <label class="f" for="pv-verdict">Independent verdict</label>
+    <select id="pv-verdict"><option value="">Choose…</option><option value="approve">Approve</option><option value="changes">Changes needed</option><option value="reject">Reject</option></select>
+    <label class="f" for="pv-defects">Real defects found by the evaluator or challenger</label><input id="pv-defects" type="number" min="0" max="20" value="0">
+    <label class="f" for="pv-op">◆ OpenProof evidence record (optional, seals the quest)</label><input id="pv-op" placeholder="evidence/2026-11-06/rate-limit.bundle or a Declaration Card path">
+    <label class="f" for="pv-lesson">Lesson for the builder (only when you send it back)</label><input id="pv-lesson" placeholder="Name the root cause in the PR text, not just the symptom">
+    <p class="tiny" id="pv-hint"></p>
+    <div class="nav2"><button value="cancel" formnovalidate>Cancel</button><span style="display:flex;gap:8px;flex-wrap:wrap"><button value="back" id="pv-back">Send back with lesson</button><button class="gold" value="accept" id="pv-accept">Accept and award XP</button></span></div>
+  </form>
+</dialog>
+
+<div class="pad" id="pad" aria-label="Handheld controls">
+  <div class="dpad"><i></i><button class="u" data-k="up" aria-label="Up">▲</button><button class="l" data-k="left" aria-label="Left">◀</button><button class="r" data-k="right" aria-label="Right">▶</button><button class="d" data-k="down" aria-label="Down">▼</button></div>
+  <div class="ss"><button data-k="select">SELECT</button><button data-k="start">START</button></div>
+  <div class="ab"><button class="b" data-k="b" aria-label="B: back">B</button><button class="a" data-k="a" aria-label="A: choose">A</button></div>
+</div>
+<dialog id="dw">
+  <form method="dialog" id="wform">
+    <h3 style="color:var(--gold-2)">Make your own world</h3>
+    <p class="tiny">Rename every job and place, pick a map and a colour. The rules underneath don't change.</p>
+    <label class="f" for="cw-name">World name</label><input id="cw-name" maxlength="30" value="My World">
+    <div id="cw-fields" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:0 10px"></div>
+    <label class="f" for="cw-map">Map</label><select id="cw-map"><option value="realm">Realm (forests and a river)</option><option value="neon">City (streets and neon)</option><option value="sky">Sky islands (platforms and clouds)</option><option value="star">Space (stars and orbits)</option></select>
+    <label class="f" for="cw-accent">Accent colour</label><input id="cw-accent" type="color" value="#e3b75a" style="height:42px;padding:4px">
+    <div class="nav2"><button value="cancel" formnovalidate>Cancel</button><button class="gold" value="ok">Play this world</button></div>
+  </form>
+</dialog>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<div class="lvup" id="lvup" aria-hidden="true"><div><b>LEVEL UP</b><span id="lvup-t"></span></div></div>
+<input type="file" id="imp" accept="application/json" hidden>
+
+<script>
+/* ------------------------------------------------------------------ data */
+const CLASSES = {
+  master:   {name:"Guild Master", role:"owner",      roleName:"Owner",          does:"Directs, judges and merges. Decisions stay with a person.", never:"builds", tunic:"#7a1f2b", person:true},
+  herald:   {name:"Herald",       role:"chief",      roleName:"Chief of staff", does:"Turns the owner's goals into written orders.",              never:"builds or merges", tunic:"#5b4a9e"},
+  leader:   {name:"Raid Leader",  role:"coord",      roleName:"Coordinator",    does:"Works the inbox in order, one worktree per quest.",          never:"builds in the main folder or merges", tunic:"#2a5f9e"},
+  artificer:{name:"Artificer",    role:"builder",    roleName:"Builder",        does:"One branch: failing tests first, then the change.",          never:"reviews own work or merges", tunic:"#a8551f"},
+  paladin:  {name:"Paladin",      role:"evaluator",  roleName:"Evaluator",      does:"Independent review from a clean checkout.",                  never:"edits the builder's branch", tunic:"#1f7f78"},
+  rogue:    {name:"Rogue",        role:"challenger", roleName:"Challenger",     does:"Tries to break the work before anyone relies on it.",        never:"fixes", tunic:"#3a2b3f"},
+  scribe:   {name:"Scribe",       role:"claims",     roleName:"Claims officer", does:"Checks every public word against its evidence.",             never:"approves content", tunic:"#6f7a26"},
+  ranger:   {name:"Ranger",       role:"watch",      roleName:"Watch",          does:"Reads status on a schedule and calls the owner when needed.", never:"anything else", tunic:"#2f6b34"},
+};
+const ORIGINS = {"Person":"#e9c27a","Claude Code":"#d97757","Codex":"#9aa3ad","Gemini CLI":"#6c8cff","Cursor":"#c9c9c9","Copilot":"#8f6bd8","Cowork":"#e39a6a","Scheduled task":"#6fb38a"};
+const SKIN = ["#f1c9a0","#d9a777","#b07a4f","#7c5234","#e8d2b4"], HAIR=["#2b1d14","#6b3d1e","#c9a24c","#d8d4cc","#7a2020","#1f2b3a"];
+const HARNESS = [
+  {id:"helm",   name:"Worktree Helm",          text:"Works only in its own worktree, never the main folder.", ic:"helm"},
+  {id:"chest",  name:"Deny-rule Plate",        text:"Deny rules block secrets, keys and protected paths.", ic:"plate"},
+  {id:"hands",  name:"No-merge Gauntlets",     text:"Can't merge, or push to main, develop or release.", ic:"glove"},
+  {id:"belt",   name:"Allowlist Belt",         text:"Only the tools and MCP servers ticked below.", ic:"belt"},
+  {id:"boots",  name:"Constructed-data Boots", text:"Real data never goes to a hosted model; constructed cases only.", ic:"boot"},
+  {id:"amulet", name:"Evidence Amulet",        text:"Every action leaves a record in the evidence trail.", ic:"amulet"},
+];
+const ALLOW = ["git (local)","GitHub: pull requests","GitHub: read","filesystem: worktree only","test runner","web search","browser","issue tracker","chat"];
+const ALLOW_DEFAULT = {master:[],herald:["GitHub: read","issue tracker"],leader:["git (local)","GitHub: pull requests","filesystem: worktree only"],artificer:["git (local)","GitHub: pull requests","filesystem: worktree only","test runner"],
+  paladin:["git (local)","GitHub: read","test runner"],rogue:["git (local)","filesystem: worktree only","test runner"],scribe:["GitHub: read"],ranger:["GitHub: read","chat"]};
+const VOWS = [["Never merges","Only the Guild Master merges, releases and decides."],["Never on a protected branch","Every quest gets its own branch and worktree."],["Never real data to a hosted model","Constructed cases only, at every level."]];
+const TALENTS = {
+  artificer:[[2,["Red first","Shows the failing test before the change"],["Small cuts","Keeps each pull request under 300 changed lines"]],[4,["Clean tree","Runs the full suite on a clean checkout before upload"],["Brief writer","Names every risk in the evaluator brief"]],[6,["Root cause","Every fix names its cause, not just the symptom"],["Mentor","Leaves a lesson file for new artificers after each quest"]]],
+  paladin:[[2,["Fresh eyes","Reviews from a clean checkout, never the builder's folder"],["Re-run it","Re-runs the named tests instead of trusting the report"]],[4,["Claim hunter","Checks every claim in the PR text against evidence"],["Edge seeker","Adds one constructed edge case per review"]],[6,["Verdict scroll","Writes a verdict record OpenProof can seal"],["Planted flaw","Plants a known defect to confirm the tests catch it"]]],
+  rogue:[[2,["Fuzz","Feeds malformed input to every new entry point"],["Path walker","Tries path tricks against every file write"]],[4,["Whisper","Tries injected instructions in every text the agent reads"],["Race","Tries the same action twice at once"]],[6,["Red-team pack","Keeps a reusable attack pack for each area"],["Escape artist","Tries to step outside the worktree and records the result"]]],
+  leader:[[2,["True status","Checks STATUS against the remote after every step"],["One at a time","Starts a quest only after the last one reports"]],[4,["Stop on block","Writes the block and stops; never routes around a guard"],["Warden","Removes finished worktrees after merge"]],[6,["Handover","Leaves a cold-resume note at every pause"],["Cadence","Posts a short status at fixed times"]]],
+  herald:[[2,["Owner's words","Quotes the owner in every order"],["Intent first","States intent before steps"]],[4,["Stop points","Ends every order at a named stop point"],["Plain words","No claim words in any order"]],[6,["Decision pack","Bundles open decisions for the owner each week"],["Order audit","Runs the order checker before posting"]]],
+  scribe:[[2,["Maps to","Writes 'maps to', never 'meets'"],["Source it","Links every public number to its evidence"]],[4,["Word list","Keeps the banned-words list current"],["Diff words","Checks wording changes in every release note"]],[6,["Evidence index","Keeps an index from claims to OpenProof records"],["Second reader","Asks a different vendor to reread every claim"]]],
+  ranger:[[2,["Three calls","Checks at three fixed times a day"],["Quiet when green","Calls only when the owner is needed"]],[4,["Stale alarm","Flags a STATUS older than one day"],["Remote check","Compares STATUS with the remote branches"]],[6,["Weekly digest","Writes a weekly summary for the owner"],["Escalate","Raises any block that lasts over a day"]]],
+};
+const LV = [0,100,250,450,700,1000];
+const levelOf = xp => LV.filter(t=>xp>=t).length;
+const rangeOf = lv => lv>=5?3:lv>=3?2:1;
+const POSTS = [
+  {id:"keep",  tag:"owner keeps 3 jobs", hint:N=>`The ${N("master")} directs, judges and repairs. The ${N("herald")} turns goals into orders.`, slots:[["master","Guild Master"],["herald","Herald"]]},
+  {id:"table", tag:"exactly one",        hint:N=>`One ${N("leader")} works the inbox in order and keeps STATUS true.`, slots:[["leader","Raid Leader"]]},
+  {id:"tower", tag:"2–3 calls a day",    hint:N=>`The ${N("ranger")} reads STATUS and calls the owner when needed.`, slots:[["ranger","Ranger"]]},
+];
+let QSLOTS = [["artificer","Artificer"],["paladin","Paladin"],["rogue","Rogue"],["scribe","Scribe"]];
+
+let S = blank();
+function blank(){return {heroes:{},slots:{},quests:[],seq:1,qseq:1,chron:[]}}
+const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>[...r.querySelectorAll(s)];
+const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const save=()=>{try{localStorage.setItem("agent-company-guild",JSON.stringify(S))}catch(e){}};
+function toast(m){const t=$("#toast");t.textContent=m;t.classList.add("on");clearTimeout(toast.h);toast.h=setTimeout(()=>t.classList.remove("on"),2600)}
+
+/* ------------------------------------------------------------------ sound (tiny synth, only after a click) */
+let AC=null, SOUND=true;
+function tone(f,d=.12,type="square",v=.05,at=0){if(!SOUND)return;try{AC=AC||new (window.AudioContext||window.webkitAudioContext)();const t=AC.currentTime+at,o=AC.createOscillator(),g=AC.createGain();o.type=type;o.frequency.value=f;g.gain.setValueAtTime(v,t);g.gain.exponentialRampToValueAtTime(.0001,t+d);o.connect(g).connect(AC.destination);o.start(t);o.stop(t+d+.02)}catch(e){}}
+const sfx={place:()=>{tone(523,.08);tone(784,.1,"square",.04,.07)},nope:()=>{tone(160,.18,"sawtooth",.05)},fit:()=>{tone(880,.06,"triangle",.06);tone(1320,.12,"triangle",.05,.05)},
+  horn:()=>{[262,330,392,523].forEach((f,i)=>tone(f,.35,"sawtooth",.035,i*.12))},level:()=>{[523,659,784,1047,1319].forEach((f,i)=>tone(f,.22,"square",.05,i*.09))},coin:()=>{tone(988,.07);tone(1319,.2,"square",.04,.07)}};
+
+/* ------------------------------------------------------------------ sprites: 18x20 pixel heroes, harness drawn as gold and teal straps */
+function shade(hex,k){const n=parseInt(hex.slice(1),16);let r=n>>16,g=n>>8&255,b=n&255;const f=v=>Math.max(0,Math.min(255,Math.round(k<0?v*(1+k):v+(255-v)*k)));return "#"+[f(r),f(g),f(b)].map(x=>x.toString(16).padStart(2,"0")).join("")}
+function drawHero(cv,h,fitted){
+  const c=cv.getContext("2d"); c.clearRect(0,0,18,20);
+  const P=(x,y,w,hh,col)=>{c.fillStyle=col;c.fillRect(x,y,w,hh)};
+  const K=CLASSES[h.cls]||CLASSES.artificer, tun=h.tunic||K.tunic, cape=ORIGINS[h.origin]||"#888", skin=SKIN[h.skin||0], hair=HAIR[h.hair||0];
+  const fit=new Set(fitted||h.harness||[]), GOLD="#e9b949", G2="#a87a1e", TEAL="#4fe0cf";
+  // cape behind
+  P(5,8,8,9,shade(cape,-.25)); P(4,9,1,7,shade(cape,-.4)); P(13,9,1,7,shade(cape,-.4));
+  // legs and boots
+  P(6,14,2,4,shade(tun,-.45)); P(10,14,2,4,shade(tun,-.45));
+  P(5,18,3,2,fit.has("boots")?GOLD:"#3a2a1c"); P(10,18,3,2,fit.has("boots")?GOLD:"#3a2a1c");
+  if(fit.has("boots")){P(5,18,3,1,"#ffe08a");P(10,18,3,1,"#ffe08a")}
+  // body and arms
+  P(5,8,8,6,tun); P(5,8,8,1,shade(tun,.2)); P(5,13,8,1,shade(tun,-.3));
+  P(4,9,1,4,tun); P(13,9,1,4,tun);
+  P(4,13,1,1,fit.has("hands")?GOLD:skin); P(13,13,1,1,fit.has("hands")?GOLD:skin);
+  if(fit.has("hands")){P(4,12,1,1,G2);P(13,12,1,1,G2)}
+  // harness straps across the chest
+  if(fit.has("chest")){for(let i=0;i<5;i++){P(6+i,8+i,1,1,GOLD);P(11-i,8+i,1,1,GOLD)} P(8,10,2,1,"#ffe08a")}
+  if(fit.has("belt")){P(5,13,8,1,G2);P(8,13,2,1,"#ffe08a")}
+  if(fit.has("amulet")){P(8,9,2,2,TEAL);P(8,9,1,1,"#c9fff8")}
+  // head
+  P(6,3,6,5,skin); P(6,7,6,1,shade(skin,-.15)); P(7,5,1,1,"#1b1410"); P(10,5,1,1,"#1b1410"); P(8,7,2,1,shade(skin,-.3));
+  P(6,2,6,1,hair); P(5,3,1,3,hair); P(12,3,1,3,hair);
+  // class headgear and gear
+  const cls=h.cls, look=(typeof W!=="undefined"&&W)?W.map:"realm";
+  if(look!=="realm"){
+    if(look==="star"){P(5,1,8,1,"#dfe8f2");P(4,2,1,6,"#dfe8f2");P(13,2,1,6,"#dfe8f2");P(5,2,8,1,"#9fb3c8");P(6,4,6,2,"rgba(90,209,255,.75)");P(7,4,1,1,"#e8fbff");P(3,4,1,2,"#5ad1ff")}
+    if(look==="neon"){P(6,5,6,1,"#111");P(7,5,1,1,"#ff3fa4");P(10,5,1,1,"#40e0ff");P(5,8,2,2,shade(tun,.35));P(11,8,2,2,shade(tun,.35))}
+    if(look==="sky"){P(6,1,6,2,tun);P(5,2,8,1,shade(tun,-.2));P(8,0,2,1,"#888");P(6,-0,2,1,"#ffd23f");P(10,0,2,1,"#40c0ff")}
+    if(cls==="master"){P(7,0,4,1,GOLD);P(8,0,2,1,"#fff2b0")}
+  }
+  if(look==="realm"&&cls==="master"){P(6,0,6,2,GOLD);P(6,0,1,1,"#fff2b0");P(8,0,1,1,"#e2685a");P(11,0,1,1,"#fff2b0");P(9,0,1,1,GOLD)}
+  if(cls==="rogue"&&look==="realm"){P(5,1,8,2,"#231a24");P(5,3,1,5,"#231a24");P(12,3,1,5,"#231a24");P(6,6,6,1,"#3d2e40")}
+  if(cls==="ranger"){if(look==="realm"){P(5,1,8,2,"#244d29");P(5,3,1,4,"#244d29");P(12,3,1,4,"#244d29")}P(15,4,1,12,"#8a5a2b");P(16,5,1,1,"#8a5a2b");P(16,14,1,1,"#8a5a2b");P(14,5,1,10,"#d8cfb8")}
+  if(cls==="herald"){if(look==="realm"){P(6,1,6,1,"#5b4a9e");P(5,2,8,1,"#3e3170");P(12,0,1,2,"#e2685a")}P(14,9,3,2,"#e9b949");P(16,8,1,4,"#f3e6b0")}
+  if(cls==="scribe"){P(1,10,3,3,"#6b2e1e");P(1,10,3,1,"#f3e6c6");P(14,9,1,4,"#f3e6c6");P(15,8,1,2,"#cfc4a8")}
+  if(cls==="leader"){P(15,1,1,13,"#7a5a32");P(16,1,2,4,"#2a5f9e");P(16,2,2,1,GOLD)}
+  if(cls==="artificer"){P(15,6,1,8,"#7a5a32");P(14,4,4,2,"#9aa3ad");P(14,4,4,1,"#cfd5db")}
+  if(cls==="paladin"){P(1,9,3,5,"#cfd5db");P(1,9,3,1,"#ffffff");P(2,10,1,3,"#1f7f78");P(1,11,3,1,"#1f7f78");P(15,7,1,7,"#cfd5db");P(14,7,3,1,GOLD)}
+  if(fit.has("helm")&&cls!=="master"&&look!=="star"){P(6,2,6,1,GOLD);P(6,2,1,1,"#ffe08a");P(5,3,1,1,G2);P(12,3,1,1,G2)}
+}
+function heroCanvas(h,cls="spr",fitted){const cv=document.createElement("canvas");cv.width=18;cv.height=20;cv.className=cls;drawHero(cv,h,fitted);return cv}
+function gearIcon(id){const g={helm:'<path d="M6 20v-6a10 10 0 0 1 20 0v6h-4v-5h-12v5z" fill="currentColor"/><rect x="14" y="5" width="4" height="4" fill="currentColor"/>',
+  plate:'<path d="M8 6l8 3 8-3 2 6-2 12H8L6 12z" fill="currentColor"/><path d="M10 9l12 12M22 9L10 21" stroke="var(--stone)" stroke-width="2"/>',
+  glove:'<path d="M10 26V12a2 2 0 0 1 4 0V8a2 2 0 0 1 4 0v4a2 2 0 0 1 4 0v14z" fill="currentColor"/>',
+  belt:'<rect x="4" y="13" width="24" height="6" rx="1" fill="currentColor"/><rect x="13" y="11" width="6" height="10" rx="1" fill="none" stroke="currentColor" stroke-width="2"/>',
+  boot:'<path d="M10 4h7v14l9 4v5H8z" fill="currentColor"/>',
+  amulet:'<path d="M8 4q8 10 16 0" fill="none" stroke="currentColor" stroke-width="2"/><path d="M16 12l6 7-6 8-6-8z" fill="currentColor"/>'}[id];
+  return `<svg viewBox="0 0 32 32" width="30" height="30" style="color:var(--gold)">${g}</svg>`}
+
+/* ------------------------------------------------------------------ FORGE */
+const STEPS=["Class","Origin","Look","Harness","Vows"];
+let F={step:0,h:null};
+function newDraft(){F={step:0,h:{name:"",cls:"artificer",origin:"Claude Code",skin:0,hair:0,tunic:null,harness:[],allow:[...ALLOW_DEFAULT.artificer],xp:0,talents:[],lessons:[],record:{won:0,back:0,defects:0}}}}
+function renderForge(){
+  const h=F.h, K=CLASSES[h.cls];
+  $("#steps").innerHTML=STEPS.map((s,i)=>`<span class="${i===F.step?"on":i<F.step?"done":""}">${i+1}. ${s}</span>`).join("");
+  let html="";
+  if(F.step===0) html=`<p class="muted" style="margin-top:0">Each class is one job on the team. One agent, one job.</p><div class="classes">${Object.entries(CLASSES).map(([k,c])=>`<button class="cls" data-cls="${k}" aria-pressed="${h.cls===k}"><span data-spr="${k}"></span><b>${c.name}</b><span class="role">${c.roleName}</span><small>${c.does}</small></button>`).join("")}</div>`;
+  if(F.step===1) html=`<p class="muted" style="margin-top:0">The origin is the tool or vendor the hero runs on. A Paladin from a different origin than the Artificer catches more.</p><div class="chips">${Object.entries(ORIGINS).filter(([o])=>K.person?o==="Person":o!=="Person").map(([o,col])=>`<button class="chip" data-origin="${esc(o)}" aria-pressed="${h.origin===o}"><i style="background:${col}"></i>${esc(o)}</button>`).join("")}</div>`;
+  if(F.step===2) html=`<label class="f" for="h-name">Name</label><input id="h-name" maxlength="28" value="${esc(h.name)}" placeholder="${esc(suggestName(h))}">
+    <label class="f">Skin</label><div class="swatches">${SKIN.map((c,i)=>`<button class="sw" data-skin="${i}" style="background:${c}" aria-label="Skin ${i+1}" aria-pressed="${h.skin===i}"></button>`).join("")}</div>
+    <label class="f">Hair</label><div class="swatches">${HAIR.map((c,i)=>`<button class="sw" data-hair="${i}" style="background:${c}" aria-label="Hair ${i+1}" aria-pressed="${h.hair===i}"></button>`).join("")}</div>
+    <label class="f">Tunic</label><div class="swatches">${[K.tunic,"#7a1f2b","#2a5f9e","#1f7f78","#a8551f","#3a2b3f","#6f7a26","#5b4a9e"].map(c=>`<button class="sw" data-tunic="${c}" style="background:${c}" aria-label="Tunic ${c}" aria-pressed="${(h.tunic||K.tunic)===c}"></button>`).join("")}</div>`;
+  if(F.step===3) html=`<p class="muted" style="margin-top:0">The <b>OpenProof harness</b> is what lets you send an agent out without watching every move. Fit each piece. A hero can't be deployed until all six are on.</p>
+    <div class="gear">${HARNESS.map(p=>`<div class="piece ${h.harness.includes(p.id)?"fit":""}"><div class="ic">${gearIcon(p.ic)}</div><div style="min-width:0"><b>${p.name}</b><p>${p.text}</p>
+      ${p.id==="belt"?`<div class="allow">${ALLOW.map(a=>`<label><input type="checkbox" data-allow="${esc(a)}" ${h.allow.includes(a)?"checked":""}>${esc(a)}</label>`).join("")}</div>`:""}
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:6px"><span class="st">${h.harness.includes(p.id)?"Fitted":"Not fitted"}</span><button data-fit="${p.id}" style="padding:4px 10px;font-size:12.5px">${h.harness.includes(p.id)?"Fitted ✓":"Fit"}</button></div></div></div>`).join("")}</div>
+    <div class="nav2" style="justify-content:flex-start"><button id="fit-all" class="gold">Fit the full harness</button></div>
+    <p class="note">The game writes the harness onto the hero's sheet as rules. Your tool enforces them through its settings, or through the OpenProof harness (hooks and deny rules) from the Harness Marketplace.</p>`;
+  if(F.step===4) html=`<p class="muted" style="margin-top:0">Vows never change, at any level. Talents and trust grow; these don't.</p><ul class="vows">${VOWS.map(([a,b])=>`<li><b>${a}.</b> ${b}</li>`).join("")}</ul>
+    <p class="note"><b>${esc(h.name||suggestName(h))}</b>, ${K.name} (${K.roleName}) of ${esc(h.origin)}. Harness ${h.harness.length}/6. Starts at level 1, holding one quest at a time.</p>`;
+  $("#fstep").innerHTML=html;
+  $$("[data-spr]").forEach(s=>{const cv=heroCanvas({...h,cls:s.dataset.spr,tunic:null},"spr",[]);cv.style.width="54px";cv.style.height="60px";s.replaceWith(cv)});
+  $("#f-back").disabled=F.step===0;
+  $("#f-next").textContent=F.step===4?(F.editing?"Save hero":"Enter the guild"):"Next";
+  $("#f-next").disabled=F.step===4&&h.harness.length<6&&!K.person;
+  renderPreview();
+}
+function suggestName(h){const n={master:"Yen the Steady",herald:"Quill-voice",leader:"Marshal Kestrel",artificer:"Brannoc Forgehand",paladin:"Sera Truecheck",rogue:"Nyx Breakfast",scribe:"Ollo Inkwell",ranger:"Fen Lookout"};const r=n[h.cls]||"Hero";return h.cls==="rogue"?"Nyx Shadowprobe":r}
+function renderPreview(){
+  const h=F.h,K=CLASSES[h.cls]; drawHero($("#p-spr"),h);
+  $("#p-name").textContent=h.name||suggestName(h); $("#p-tag").textContent=`${K.name} · ${K.roleName} · ${h.origin}`;
+  $("#p-gear").textContent=`${h.harness.length}/6`; $("#p-harness").textContent=h.harness.length===6?"harness complete":"";
+  $("#p-lv").textContent=levelOf(h.xp); $("#p-range").textContent=rangeOf(levelOf(h.xp)); $("#p-does").textContent=`${K.does} Never ${K.never}.`;
+}
+$("#fstep").addEventListener("click",e=>{
+  const h=F.h, b=e.target.closest("button,[data-allow]"); if(!b) return;
+  if(b.dataset.cls){h.cls=b.dataset.cls;h.tunic=null;h.allow=[...ALLOW_DEFAULT[h.cls]];if(CLASSES[h.cls].person){h.origin="Person";h.harness=[]}else if(h.origin==="Person")h.origin=h.cls==="ranger"?"Scheduled task":h.cls==="paladin"?"Codex":"Claude Code";sfx.place()}
+  if(b.dataset.origin){h.origin=b.dataset.origin;sfx.place()}
+  if(b.dataset.skin){h.skin=+b.dataset.skin} if(b.dataset.hair){h.hair=+b.dataset.hair} if(b.dataset.tunic){h.tunic=b.dataset.tunic}
+  if(b.dataset.fit&&!h.harness.includes(b.dataset.fit)){h.harness.push(b.dataset.fit);sfx.fit()}
+  if(b.id==="fit-all"){HARNESS.forEach((p,i)=>setTimeout(()=>{if(!h.harness.includes(p.id)){h.harness.push(p.id);sfx.fit();renderForge()}},i*160));return}
+  if(b.dataset.allow!==undefined) return;
+  renderForge();
+});
+$("#fstep").addEventListener("change",e=>{const a=e.target.dataset.allow;if(a===undefined)return;const h=F.h;h.allow=e.target.checked?[...new Set([...h.allow,a])]:h.allow.filter(x=>x!==a)});
+$("#fstep").addEventListener("input",e=>{if(e.target.id==="h-name"){F.h.name=e.target.value;renderPreview()}});
+$("#f-back").onclick=()=>{if(F.step>0){F.step--;renderForge()}};
+$("#f-next").onclick=()=>{
+  const K=CLASSES[F.h.cls];
+  if(F.step===3&&K.person){F.step=4;renderForge();return}
+  if(F.step<4){F.step++;if(F.step===3&&K.person)F.step=4;renderForge();return}
+  const h=F.h; h.name=(h.name||suggestName(h)).trim();
+  if(F.editing){S.heroes[h.id]=h} else {h.id="h"+(S.seq++);S.heroes[h.id]=h}
+  save(); sfx.horn(); toast(`${h.name} joins the guild`); newDraft(); renderForge(); renderAll(); go("map");
+};
+
+/* ------------------------------------------------------------------ WAR MAP */
+const atSlot=k=>(S.slots[k]||[]).map(id=>S.heroes[id]).filter(Boolean);
+const questLoad=id=>S.quests.filter(q=>q.status!=="proven"&&QSLOTS.some(([c])=>(S.slots[q.id+":"+c]||[]).includes(id))).length;
+function heroTok(h){return `<div class="tok" tabindex="0" data-hero="${h.id}" data-placed="1" aria-label="${esc(h.name)}, ${CLASSES[h.cls].name}"><span data-mini="${h.id}"></span>${esc(h.name.split(" ")[0])}<span class="lv">L${levelOf(h.xp)}</span></div>`}
+function slotHTML(key,acc,name){return `<div class="slot" tabindex="0" data-slot="${key}" data-accept="${acc}" data-name="${name}">${atSlot(key).map(heroTok).join("")}</div>`}
+function renderMap(){
+  // tray
+  const hs=Object.values(S.heroes);
+  $("#tray").innerHTML=hs.length?hs.map(h=>{const lv=levelOf(h.xp),nx=LV[lv]??LV[LV.length-1],pv=LV[lv-1]||0,pct=lv>=6?100:Math.round((h.xp-pv)/(nx-pv)*100),tp=talentPoints(h);
+    return `<div class="hero" tabindex="0" data-hero="${h.id}" aria-label="${esc(h.name)}, level ${lv} ${CLASSES[h.cls].name}"><span class="lvl">${lv}</span>${tp?`<span class="tp" title="Talent to train">+${tp}</span>`:""}<span data-big="${h.id}"></span><b>${esc(h.name)}</b><small>${CLASSES[h.cls].name} · ${esc(h.origin)}</small>${CLASSES[h.cls].person?"":`<div class="xpbar" title="${h.xp} ${W.xp}"><i style="width:${pct}%"></i></div><small>${questLoad(h.id)}/${rangeOf(lv)} ${W.qs}</small>`}</div>`}).join("")
+    :`<p class="muted">No heroes yet. Forge one, or load the demo guild.</p>`;
+  // locations and quests
+  const posts=POSTS.map(p=>`<div class="loc"><h3>${locIcon(p.id)}${W.posts[p.id]}<em>${p.tag}</em></h3><p>${p.hint(c=>CLASSES[c].name)}</p><div class="slots" style="grid-template-columns:repeat(${p.slots.length},minmax(0,1fr))">${p.slots.map(([c])=>slotHTML(p.id+":"+c,c,CLASSES[c].name)).join("")}</div></div>`).join("");
+  const qs=S.quests.map(q=>`<div class="loc quest"><div class="qhead">${locIcon("dungeon")}<div style="min-width:0;flex:1"><div class="qnum">${W.Q} ${q.num}</div><h3>${esc(q.title)}</h3><div class="br">${esc(q.branch)}</div></div><span class="badge b-${q.status}">${q.status}</span></div>
+    <p>${esc(q.intent||"No intent written yet.")}</p><div class="slots">${QSLOTS.map(([c,n])=>slotHTML(q.id+":"+c,c,n)).join("")}</div>
+    <div class="qacts">${q.status==="deployed"?`<button data-ret="${q.id}">${W.Q} returned</button>`:""}${q.status==="returned"?`<button class="gold" data-prove="${q.id}">Prove it</button>`:""}${q.status==="proven"?`<span class="seal">${q.proof?.op?"◆ Sealed by OpenProof":"Proven, self-reported"}</span>`:""}<button data-del="${q.id}" aria-label="Remove quest ${q.num}">Remove</button></div></div>`).join("");
+  $("#locs").innerHTML=posts+`<div class="quests">${qs||`<div class="loc"><h3>${locIcon("dungeon")}No quests yet</h3><p>Add one with New quest.</p></div>`}</div>`;
+  $$("[data-mini]").forEach(s=>{const h=S.heroes[s.dataset.mini];s.replaceWith(heroCanvas(h))});
+  $$("[data-big]").forEach(s=>{const h=S.heroes[s.dataset.big];s.replaceWith(heroCanvas(h))});
+  renderReady();
+}
+function locIcon(id){const m={keep:'<path d="M3 21V9l3 2V7l3 2V5l3 3 3-3v4l3-2v4l3-2v12z"/>',table:'<path d="M3 10h18v3H3zM5 13v8M19 13v8M8 4l4 4 4-4" stroke="currentColor" stroke-width="2" fill="none"/>',tower:'<path d="M8 21V8L6 6V3h12v3l-2 2v13zM10 12h4"/>',dungeon:'<path d="M3 21V11a9 9 0 0 1 18 0v10h-5v-6a4 4 0 0 0-8 0v6z"/>'}[id];
+  return `<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" style="color:var(--gold);flex:none">${m}</svg>`}
+function terrain(){return (TERRAIN[W.map]||TERRAIN.realm)()}
+const TERRAIN={};TERRAIN.realm=function(){
+  // a hand-drawn looking map: coast, river, hills, trees and a dotted road, all generated
+  let r=7;const rnd=()=>(r=(r*9301+49297)%233280)/233280;let s="";
+  s+=`<path d="M0 520 C120 480 160 560 300 540 S520 600 640 560 820 600 1000 560 L1000 700 L0 700Z" fill="rgba(60,110,140,.28)"/>`;
+  s+=`<path d="M620 0 C600 120 700 180 660 300 S560 420 600 540" stroke="rgba(80,140,170,.45)" stroke-width="10" fill="none" stroke-linecap="round"/>`;
+  for(let i=0;i<46;i++){const x=rnd()*1000,y=rnd()*480;s+=`<path d="M${x} ${y+10} l8 -16 l8 16z" fill="rgba(70,110,60,.35)"/>`}
+  for(let i=0;i<14;i++){const x=rnd()*1000,y=rnd()*460;s+=`<path d="M${x} ${y+20} q22 -40 44 0" fill="none" stroke="rgba(140,110,70,.35)" stroke-width="3"/>`}
+  s+=`<path d="M60 120 C260 160 300 300 520 260 S800 160 960 260" stroke="rgba(227,183,90,.35)" stroke-width="3" stroke-dasharray="2 10" stroke-linecap="round" fill="none"/>`;
+  s+=`<g transform="translate(930 70)" stroke="rgba(227,183,90,.5)" fill="none"><circle r="26"/><path d="M0 -34 L5 0 L0 34 L-5 0Z" fill="rgba(227,183,90,.4)"/><path d="M-34 0 H34"/></g>`;
+  return s;
+};
+TERRAIN.neon=function(){let r=11;const rnd=()=>(r=(r*9301+49297)%233280)/233280;let s=`<rect width="1000" height="700" fill="rgba(10,10,30,.5)"/>`;
+  for(let x=0;x<1000;x+=125)s+=`<rect x="${x+8}" y="0" width="14" height="700" fill="rgba(60,60,90,.55)"/><line x1="${x+15}" y1="0" x2="${x+15}" y2="700" stroke="rgba(255,220,120,.25)" stroke-dasharray="10 14"/>`;
+  for(let y=0;y<700;y+=110)s+=`<rect x="0" y="${y+8}" width="1000" height="14" fill="rgba(60,60,90,.55)"/>`;
+  for(let i=0;i<40;i++){const x=Math.floor(rnd()*8)*125+30,y=Math.floor(rnd()*7)*110+30,w=30+rnd()*60,h=24+rnd()*50,c=["255,63,164","64,224,255","255,214,64","140,255,120"][i%4];s+=`<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="3" fill="rgba(${c},.08)" stroke="rgba(${c},.45)" stroke-width="1.5"/>`}
+  return s};
+TERRAIN.sky=function(){let r=5;const rnd=()=>(r=(r*9301+49297)%233280)/233280;let s=`<rect width="1000" height="700" fill="rgba(140,200,255,.25)"/>`;
+  for(let i=0;i<9;i++){const x=rnd()*900,y=rnd()*560;s+=`<g transform="translate(${x} ${y})"><ellipse rx="40" ry="14" fill="rgba(255,255,255,.5)"/><ellipse cx="18" cy="-8" rx="22" ry="12" fill="rgba(255,255,255,.5)"/></g>`}
+  for(let i=0;i<6;i++){const x=rnd()*860,y=140+rnd()*480,w=90+rnd()*70;s+=`<path d="M${x} ${y} h${w} l-${w*.18} 40 l-${w*.25} 22 l-${w*.3} -18 z" fill="rgba(150,110,80,.55)"/><path d="M${x-4} ${y} h${w+8} v8 h-${w+8}z" fill="rgba(110,190,90,.65)"/><path d="M${x+w*.4} ${y+50} q4 20 -2 34" stroke="rgba(90,140,70,.6)" fill="none" stroke-width="3"/><path d="M${x+w*.5} ${y-26} l9 12 l-9 12 l-9 -12z" fill="rgba(140,90,255,.55)"/>`}
+  for(let i=0;i<3;i++){const x=120+rnd()*760,y=60+rnd()*200;s+=`<g transform="translate(${x} ${y})"><circle r="18" fill="rgba(255,140,90,.55)"/><path d="M-10 14 L-5 30 H5 L10 14" stroke="rgba(120,80,40,.6)" fill="none"/><rect x="-6" y="30" width="12" height="8" fill="rgba(120,80,40,.6)"/></g>`}
+  return s};
+TERRAIN.star=function(){let r=3;const rnd=()=>(r=(r*9301+49297)%233280)/233280;let s=`<rect width="1000" height="700" fill="rgba(5,8,25,.6)"/>`;
+  for(let i=0;i<180;i++)s+=`<circle cx="${rnd()*1000}" cy="${rnd()*700}" r="${rnd()*1.6+.3}" fill="rgba(255,255,255,${.3+rnd()*.6})"/>`;
+  s+=`<ellipse cx="500" cy="350" rx="420" ry="150" fill="none" stroke="rgba(120,200,255,.25)" stroke-dasharray="4 10"/><ellipse cx="500" cy="350" rx="260" ry="90" fill="none" stroke="rgba(120,200,255,.2)" stroke-dasharray="4 10"/>`;
+  s+=`<circle cx="160" cy="560" r="70" fill="rgba(200,120,80,.35)"/><circle cx="860" cy="140" r="40" fill="rgba(110,160,255,.35)"/><ellipse cx="860" cy="140" rx="64" ry="12" fill="none" stroke="rgba(180,200,255,.4)"/>`;return s};
+function rules(){
+  const R=[],add=(l,t,w=1)=>R.push({l,t,w});
+  const master=atSlot("keep:master"),leader=atSlot("table:leader"),herald=atSlot("keep:herald"),ranger=atSlot("tower:ranger");
+  const N=c=>CLASSES[c].name,PT=id=>W.posts[id];
+  master.length===1?add("ok",`${N("master")} at the ${PT("keep")}: merges and decisions stay with a person`,3):add("bad",master.length?`One ${N("master")} only`:`No ${N("master")}: someone has to direct, judge and merge`,3);
+  leader.length===1?add("ok",`One ${N("leader")} at ${PT("table")}`,3):add("bad",leader.length?`${leader.length} of ${N("leader")}: they'd overwrite each other's status`:`No ${N("leader")}: nobody works the inbox`,3);
+  herald.length?add("ok",`${N("herald")} writes the orders`):add("warn",`No ${N("herald")}: the ${N("master")} writes every order`);
+  ranger.length?add("ok",`${N("ranger")} on the ${PT("tower")}`):add("warn",`No ${N("ranger")}: you only see blocks when you look`);
+  const unfit=Object.values(S.heroes).filter(h=>!CLASSES[h.cls].person&&h.harness.length<6&&Object.values(S.slots).some(a=>a.includes(h.id)));
+  unfit.length?add("bad",`Harness incomplete: ${unfit.map(h=>h.name).join(", ")}`,3):add("ok","Every deployed hero wears the full harness",2);
+  const live=S.quests.filter(q=>q.status!=="proven");
+  if(!live.length) add("bad",`No open ${W.qs} on the map`,2);
+  const br={};
+  live.forEach(q=>{const t=`${q.num} ${q.title}`,a=atSlot(q.id+":artificer"),p=atSlot(q.id+":paladin"),ro=atSlot(q.id+":rogue");
+    a.length===1?add("ok",`${t}: one ${N("artificer")}`,2):add("bad",a.length?`${t}: ${a.length} of ${N("artificer")} on one branch`:`${t}: no ${N("artificer")}`,2);
+    p.length?add("ok",`${t}: independent ${N("paladin")}`,2):add("bad",`${t}: no ${N("paladin")}; nobody checks the work`,2);
+    if(a.length&&p.length&&p.every(x=>x.origin===a[0].origin)) add("warn",`${t}: ${N("paladin")} has the same origin as the ${N("artificer")} (${a[0].origin})`);
+    ro.length?add("ok",`${t}: ${N("rogue")} assigned`):add("warn",`${t}: no ${N("rogue")} to try to break it`);
+    if(/^(main|master|develop\/|release\/)/.test(q.branch)) add("bad",`${t}: protected branch ${q.branch}`,2);
+    if(br[q.branch]) add("bad",`${t}: shares a branch with ${br[q.branch]}`,2); br[q.branch]=q.num;
+    /don'?t merge|do not merge/i.test(q.stop)?add("ok",`${t}: stop point says don't merge`):add("bad",`${t}: stop point must say "Don't merge"`,2);
+    q.tests?add("ok",`${t}: tests named`):add("warn",`${t}: no tests named`);
+    q.intent?add("ok",`${t}: intent written`):add("warn",`${t}: no intent`);
+  });
+  return R;
+}
+function renderReady(){
+  const R=rules(),tot=R.reduce((s,r)=>s+r.w,0),got=R.reduce((s,r)=>s+(r.l==="ok"?r.w:r.l==="warn"?r.w/2:0),0),p=tot?Math.round(got/tot*100):0;
+  const bad=R.filter(r=>r.l==="bad").length,warn=R.filter(r=>r.l==="warn").length;
+  $("#ring").style.setProperty("--p",p);$("#ring").style.setProperty("--c",bad?"var(--bad)":warn?"var(--warn)":"var(--ok)");$("#pct").textContent=p;
+  $("#r-title").textContent=bad?"Not ready":warn?"Ready, with warnings":"Ready to march";$("#r-hint").textContent=bad?`${bad} blocking, ${warn} warnings`:warn?`${warn} warnings`:"Every check passes";
+  const o={bad:0,warn:1,ok:2};$("#checks").innerHTML=R.sort((a,b)=>o[a.l]-o[b.l]).map(r=>`<li class="${r.l}"><i></i><span>${esc(r.t)}</span></li>`).join("");
+  return bad;
+}
+function canPlace(h,slot){
+  const acc=slot.dataset.accept,key=slot.dataset.slot,name=slot.dataset.name;
+  if(h.cls!==acc) return `${CLASSES[h.cls].name} can't take the ${name} slot`;
+  if(!CLASSES[h.cls].person&&h.harness.length<6) return `${h.name} isn't wearing the full harness. Fit it in the Forge`;
+  if((S.slots[key]||[]).includes(h.id)) return `${h.name} is already there`;
+  if(QSLOTS.some(([c])=>c===acc)&&!key.startsWith("keep")){const lv=levelOf(h.xp),r=rangeOf(lv);if(questLoad(h.id)>=r) return `${h.name} (level ${lv}) can hold ${r} quest${r>1?"s":""} at once. Level up to take more`}
+  if(!QSLOTS.some(([c])=>c===acc)&&Object.values(S.slots).some(a=>a.includes(h.id))) return `${h.name} already holds a post`;
+  return "";
+}
+function placeHero(id,slot,from){
+  const h=S.heroes[id],why=canPlace(h,slot);
+  if(why){slot.classList.add("nope");setTimeout(()=>slot.classList.remove("nope"),400);sfx.nope();toast(why);return}
+  if(from){S.slots[from]=(S.slots[from]||[]).filter(x=>x!==id)}
+  (S.slots[slot.dataset.slot]=S.slots[slot.dataset.slot]||[]).push(id); sfx.place(); toast(`${h.name} deployed`); save(); renderMap();
+}
+let drag=null,picked=null;
+document.addEventListener("pointerdown",e=>{
+  const c=e.target.closest("#room-map .hero,#room-map .tok"); if(!c) return; e.preventDefault();
+  const g=c.cloneNode(true);g.classList.add("ghost");g.querySelectorAll("canvas").forEach((cv,i)=>{const src=c.querySelectorAll("canvas")[i];cv.getContext("2d").drawImage(src,0,0)});document.body.appendChild(g);
+  drag={c,id:c.dataset.hero,from:c.dataset.placed?c.closest(".slot").dataset.slot:null,g,x0:e.clientX,y0:e.clientY,moved:false};g.style.left=e.clientX+"px";g.style.top=e.clientY+"px";g.style.opacity="0";
+});
+document.addEventListener("pointermove",e=>{if(!drag)return;if(Math.hypot(e.clientX-drag.x0,e.clientY-drag.y0)>6){drag.moved=true;drag.g.style.opacity=".95"}
+  drag.g.style.left=e.clientX+"px";drag.g.style.top=e.clientY+"px";if(drag.moved){if(e.clientY<60)scrollBy(0,-16);else if(e.clientY>innerHeight-60)scrollBy(0,16)}
+  $$(".slot").forEach(s=>s.classList.remove("hot"));const s=document.elementFromPoint(e.clientX,e.clientY)?.closest(".slot");if(s&&drag.moved&&!canPlace(S.heroes[drag.id],s))s.classList.add("hot")});
+document.addEventListener("pointerup",e=>{if(!drag)return;const d=drag;drag=null;d.g.remove();$$(".slot").forEach(s=>s.classList.remove("hot"));
+  if(!d.moved){picked=d;$$(".hero,.tok").forEach(x=>x.style.outline="");d.c.style.outline="2px solid var(--gold)";toast(`${S.heroes[d.id].name} selected: tap a slot`);return}
+  const s=document.elementFromPoint(e.clientX,e.clientY)?.closest(".slot");
+  if(s) placeHero(d.id,s,d.from); else if(d.from&&e.target.closest("#tray")){S.slots[d.from]=S.slots[d.from].filter(x=>x!==d.id);save();renderMap();toast(`${S.heroes[d.id].name} recalled`)}});
+document.addEventListener("click",e=>{const s=e.target.closest("#room-map .slot");if(!s||!picked)return;const d=picked;picked=null;placeHero(d.id,s,d.from)});
+document.addEventListener("keydown",e=>{const c=e.target.closest("#room-map .hero,#room-map .tok"),s=e.target.closest("#room-map .slot");
+  if(e.key==="Enter"||e.key===" "){if(c){e.preventDefault();picked={c,id:c.dataset.hero,from:c.dataset.placed?c.closest(".slot").dataset.slot:null};toast(`${S.heroes[c.dataset.hero].name} selected: choose a slot`)}else if(s&&picked){e.preventDefault();s.click()}}
+  if((e.key==="Delete"||e.key==="Backspace")&&c&&c.dataset.placed){const k=c.closest(".slot").dataset.slot;S.slots[k]=S.slots[k].filter(x=>x!==c.dataset.hero);save();renderMap()}});
+$("#locs").addEventListener("click",e=>{
+  const b=e.target.closest("button");if(!b)return;
+  if(b.dataset.del){const id=b.dataset.del;Object.keys(S.slots).forEach(k=>{if(k.startsWith(id+":"))delete S.slots[k]});S.quests=S.quests.filter(q=>q.id!==id);save();renderAll()}
+  if(b.dataset.ret){const q=S.quests.find(x=>x.id===b.dataset.ret);q.status="returned";save();sfx.coin();renderAll();toast(`Quest ${q.num} returned. Prove it in the Proving ground`)}
+  if(b.dataset.prove) openProve(b.dataset.prove);
+});
+$("#btn-quest").onclick=()=>{$("#qform").reset();$("#q-stop").value="Upload, open a pull request, write the evaluator brief. Don't merge.";$("#dq").showModal()};
+$("#dq").addEventListener("close",()=>{if($("#dq").returnValue!=="ok")return;const num=String(S.qseq++).padStart(3,"0");
+  S.quests.push({id:"q"+num,num,title:$("#q-title").value.trim(),branch:$("#q-branch").value.trim(),words:$("#q-words").value.trim(),intent:$("#q-intent").value.trim(),tests:$("#q-tests").value.trim(),stop:$("#q-stop").value.trim(),status:"planned"});
+  save();renderAll();toast(`Quest ${num} on the map`)});
+
+/* ------------------------------------------------------------------ deploy: the horn writes the files agents work from */
+let FILES=[];
+const slug=s=>s.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"").slice(0,40)||"hero";
+function heroSheet(h){
+  const K=CLASSES[h.cls],lv=levelOf(h.xp),T=(TALENTS[h.cls]||[]).flatMap(([l,...o])=>o.filter(x=>h.talents.includes(x[0])));
+  return `# ${h.name}\n\n${K.name} (${K.roleName}) · origin: ${h.origin} · level ${lv} · ${h.xp} proven XP · holds up to ${rangeOf(lv)} quest(s) at once\n\n## Job\n${K.does} Never ${K.never}.\n\n`+
+  (K.person?"":`## Harness (enforce these in the tool's settings or with the OpenProof harness)\n${HARNESS.map(p=>`- [${h.harness.includes(p.id)?"x":" "}] ${p.name}: ${p.text}`).join("\n")}\n- Allowed tools and MCP servers: ${h.allow.join(", ")||"none"}\n\n`)+
+  `## Vows (never change)\n${VOWS.map(([a,b])=>`- ${a}. ${b}`).join("\n")}\n\n## Trained practices\n${T.length?T.map(([n,t])=>`- ${n}: ${t}`).join("\n"):"- none yet"}\n\n## Lessons from quests sent back\n${h.lessons.length?h.lessons.map(l=>`- ${l}`).join("\n"):"- none yet"}\n\n## Record\nAccepted: ${h.record.won} · Sent back: ${h.record.back} · Real defects found: ${h.record.defects}\n`;
+}
+function horn(){
+  const bad=renderReady(),who=k=>atSlot(k).map(h=>`${h.name} (${h.origin})`).join(", ")||"(not assigned)";
+  FILES=[];
+  const rows=[["master","keep:master"],["herald","keep:herald"],["leader","table:leader"],["ranger","tower:ranger"]].map(([c,k])=>`| ${CLASSES[c].roleName} | ${who(k)} | ${CLASSES[c].does} | ${CLASSES[c].never} |`);
+  const live=S.quests.filter(q=>q.status!=="proven");
+  live.forEach(q=>QSLOTS.forEach(([c])=>{if(atSlot(q.id+":"+c).length)rows.push(`| ${CLASSES[c].roleName} (${q.num}) | ${who(q.id+":"+c)} | ${CLASSES[c].does} | ${CLASSES[c].never} |`)}));
+  FILES.push(["ROLES.md",`# Roles (one agent per job)\n\nEach agent's full sheet, with its harness, practices and lessons, is in guild/.\n\n| Role | Who | Does | Never does |\n|---|---|---|---|\n${rows.join("\n")}\n`]);
+  FILES.push(["inbox/README.md",`# Instruction inbox\n\nThe coordinator (exactly one session):\n1. Reads inbox/ in number order, except this README, following each file's order notes.\n2. Uses one worktree or branch per instruction, never the main folder and never a protected branch.\n3. Has the named builder do it: failing tests first, then the change, the named tests, upload, a pull request, an evaluator brief. Never merges.\n4. Sends the pull request to the named evaluator (and challenger, where named) and records their verdicts.\n5. Moves the instruction to done/ only after its pull request is merged (check the remote), and writes outbox/NNN_report.md with the evidence: PR link, tests run, verdict, and the OpenProof evidence record if there is one.\n6. Rewrites outbox/STATUS.md after every step, checked against the remote.\n7. When blocked: writes the block into STATUS.md and stops. Never routes around a guard.\n8. Every agent follows its sheet in guild/: harness, vows, trained practices and lessons.\n`]);
+  live.forEach(q=>FILES.push([`inbox/${q.num}_${slug(q.title)}.md`,`# ${q.num}: ${q.title}\n\nOwner's words: "${q.words}"\nBranch: \`${q.branch}\`, in its own worktree\nIntent: ${q.intent}\nBuilder: ${who(q.id+":artificer")} · Evaluator: ${who(q.id+":paladin")} · Challenger: ${who(q.id+":rogue")} · Claims: ${who(q.id+":scribe")}\nEach agent follows its sheet in guild/.\n\n## Steps\n1. Failing tests first.\n2. The change. Nothing is loosened.\n3. Tests to run: ${q.tests}.\n\n## Stop point\n${q.stop} Report in docs/ops/outbox/ with the evidence.\n`]));
+  Object.values(S.heroes).forEach(h=>FILES.push([`guild/${slug(h.name)}.md`,heroSheet(h)]));
+  FILES.push(["COORDINATOR_PROMPT.txt","You are the coordinator. Follow docs/ops/inbox/README.md and your sheet in docs/ops/guild/. Do every instruction in docs/ops/inbox/ in number order. Update docs/ops/outbox/STATUS.md after each one. Never merge.\n"]);
+  if(!bad) live.forEach(q=>{if(q.status==="planned")q.status="deployed"});
+  save(); renderMap();
+  $("#ftabs").innerHTML=FILES.map((f,i)=>`<button aria-pressed="${i===0}" data-f="${i}">${f[0]}</button>`).join("");
+  $$("#ftabs button").forEach(b=>b.onclick=()=>{$$("#ftabs button").forEach(x=>x.setAttribute("aria-pressed","false"));b.setAttribute("aria-pressed","true");$("#fbody").textContent=FILES[+b.dataset.f][1]});
+  $("#fbody").textContent=FILES[0][1];$("#files").classList.add("open");
+  if(bad){sfx.nope();toast(`Orders written, but ${bad} blocking issue${bad>1?"s":""} remain. Quests stay planned`)} else {sfx.horn();toast(`${W.hornDone}`)}
+}
+$("#btn-horn").onclick=horn;
+$("#btn-copy").onclick=()=>{const t=$("#fbody").textContent;navigator.clipboard?.writeText(t).then(()=>toast("Copied"),()=>toast("Select the text and copy it"))};
+
+/* ------------------------------------------------------------------ PROVING GROUND */
+let PQ=null;
+function openProve(id){PQ=S.quests.find(q=>q.id===id);$("#pform").reset();$("#p-title").textContent=`Prove quest ${PQ.num}: ${PQ.title}`;
+  $("#p-party").textContent=QSLOTS.map(([c,n])=>atSlot(PQ.id+":"+c).length?`${n}: ${atSlot(PQ.id+":"+c).map(h=>h.name).join(", ")}`:"").filter(Boolean).join(" · ");proveHint();$("#dp").showModal()}
+function proofOK(){return $("#pv-pr").value.trim()&&$("#pv-tests").value.trim()&&$("#pv-verdict").value}
+function proveHint(){const ok=proofOK(),op=$("#pv-op").value.trim();$("#pv-accept").disabled=!ok||$("#pv-verdict").value!=="approve";$("#pv-back").disabled=!ok||!$("#pv-lesson").value.trim();
+  $("#pv-hint").innerHTML=!ok?"Add the pull request, the tests and the verdict. No proof, no XP.":op?'<span class="seal">◆ Sealed: full XP</span>':"No OpenProof record: half XP, marked self-reported."}
+["input","change"].forEach(ev=>$("#pform").addEventListener(ev,proveHint));
+$("#dp").addEventListener("close",()=>{
+  const v=$("#dp").returnValue;if(!PQ||(v!=="accept"&&v!=="back"))return;
+  const proof={pr:$("#pv-pr").value.trim(),tests:$("#pv-tests").value.trim(),verdict:$("#pv-verdict").value,defects:Math.max(0,Math.min(20,+$("#pv-defects").value||0)),op:$("#pv-op").value.trim()};
+  const k=proof.op?1:.5,awards=[],give=(c,base,why)=>atSlot(PQ.id+":"+c).forEach(h=>awards.push([h,Math.round(base*k),why]));
+  const D=proof.defects,rogues=atSlot(PQ.id+":rogue");
+  if(v==="accept"){give("artificer",100,"quest accepted");give("paladin",60,"independent review");give("rogue",40,"tried to break it");give("scribe",30,"claims checked");
+    atSlot(PQ.id+":artificer").forEach(h=>h.record.won++);PQ.status="proven";PQ.proof=proof;}
+  else{give("artificer",20,"sent back: lesson learned");give("paladin",60,"caught it in review");atSlot(PQ.id+":artificer").forEach(h=>{h.lessons.push($("#pv-lesson").value.trim());h.record.back++});PQ.status="deployed"}
+  if(D){const tgt=rogues.length?"rogue":"paladin";atSlot(PQ.id+":"+tgt).forEach(h=>{awards.push([h,Math.round(30*D*k),`${D} real defect${D>1?"s":""} found`]);h.record.defects+=D})}
+  atSlot("table:leader").forEach(h=>awards.push([h,Math.round(20*k),`ran quest ${PQ.num}`]));
+  const ups=[];
+  awards.forEach(([h,x,why])=>{const before=levelOf(h.xp);h.xp+=x;const after=levelOf(h.xp);if(after>before)ups.push([h,after]);
+    S.chron.unshift({t:new Date().toISOString().slice(0,10),q:PQ.num,who:h.name,x,why,sealed:!!proof.op,pr:proof.pr})});
+  S.chron=S.chron.slice(0,200);save();renderAll();sfx.coin();
+  toast(v==="accept"?`Quest ${PQ.num} proven${proof.op?" and sealed":""}: ${awards.reduce((s,a)=>s+a[2]?s+a[1]:s,0)} XP shared`:`Quest ${PQ.num} sent back with a lesson`);
+  ups.forEach(([h,lv],i)=>setTimeout(()=>levelUp(h,lv),600+i*2500));PQ=null;
+});
+function levelUp(h,lv){$("#lvup b").textContent=W.lvup;$("#lvup-t").textContent=`${h.name} reaches level ${lv}${talentPoints(h)?" · a talent is ready to train":""}${rangeOf(lv)>rangeOf(lv-1)?` · now holds ${rangeOf(lv)} quests`:""}`;
+  const e=$("#lvup");e.classList.remove("on");void e.offsetWidth;e.classList.add("on");sfx.level()}
+function renderProve(){
+  const ret=S.quests.filter(q=>q.status==="returned"||q.status==="deployed");
+  $("#returned").innerHTML=ret.length?ret.map(q=>`<li><b>Quest ${q.num}</b> · ${esc(q.title)} <span class="badge b-${q.status}">${q.status}</span><div class="qacts">${q.status==="returned"?`<button class="gold" data-prove="${q.id}">Prove it</button>`:`<button data-ret="${q.id}">Mark returned</button>`}</div></li>`).join(""):`<li class="muted">No quests out. Sound the horn on the War map.</li>`;
+  $("#chron").innerHTML=S.chron.length?S.chron.map(c=>`<li><span class="x">+${c.x} ${W.xp}</span> ${esc(c.who)} · quest ${c.q}: ${esc(c.why)} ${c.sealed?'<span class="seal">◆</span>':'<span class="tiny">self-reported</span>'}<div class="tiny">${esc(c.t)} · ${esc(c.pr)}</div></li>`).join(""):`<li class="muted">Nothing awarded yet.</li>`;
+}
+$("#returned").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;if(b.dataset.prove)openProve(b.dataset.prove);if(b.dataset.ret){S.quests.find(q=>q.id===b.dataset.ret).status="returned";save();renderAll()}});
+
+/* ------------------------------------------------------------------ TRAINING HALL */
+function talentPoints(h){const lv=levelOf(h.xp),T=TALENTS[h.cls]||[];return T.filter(([l])=>lv>=l).length-T.filter(([l,...o])=>o.some(x=>h.talents.includes(x[0]))).length}
+let TH=null;
+function renderTrain(){
+  const hs=Object.values(S.heroes);if(!TH||!S.heroes[TH])TH=hs[0]?.id;
+  $("#tlist").innerHTML=hs.map(h=>`<button data-th="${h.id}" aria-pressed="${h.id===TH}"><span data-tm="${h.id}"></span>${esc(h.name)} · L${levelOf(h.xp)}${talentPoints(h)?' <b style="color:var(--xp)">+1</b>':""}</button>`).join("")||`<p class="muted">Forge a hero first.</p>`;
+  $$("[data-tm]").forEach(s=>s.replaceWith(heroCanvas(S.heroes[s.dataset.tm])));
+  const h=S.heroes[TH];if(!h){$("#tsheet").innerHTML="";return}
+  const K=CLASSES[h.cls],lv=levelOf(h.xp),nx=LV[lv],T=TALENTS[h.cls];
+  $("#tsheet").innerHTML=`<div class="sheet"><span data-ts></span><div style="min-width:0">
+    <h3 style="font-size:22px;color:var(--gold-2)">${esc(h.name)}</h3><p class="muted" style="margin:2px 0 8px">${K.name} · ${K.roleName} · ${esc(h.origin)}</p>
+    ${K.person?`<p>The Guild Master doesn't level up. Their job is to judge the proof.</p>`:`
+    <div class="statrow" style="max-width:520px"><div class="stat"><b>${lv}</b><span>Level</span></div><div class="stat"><b>${h.xp}</b><span>Proven ${W.xp}${nx?` · next ${nx}`:""}</span></div><div class="stat"><b>${rangeOf(lv)}</b><span>Quests at once</span></div></div>
+    <div class="xpbar" style="max-width:520px;margin-top:8px"><i style="width:${lv>=6?100:Math.round((h.xp-(LV[lv-1]||0))/(nx-(LV[lv-1]||0))*100)}%"></i></div>
+    <h4 style="margin:14px 0 4px;color:var(--gold)">Talents</h4><p class="tiny" style="margin:0">One choice per tier. A trained talent becomes a standing practice on the hero's sheet.</p>
+    <div class="tree">${T.map(([l,...o])=>{const has=o.find(x=>h.talents.includes(x[0]));return `<div class="tier"><div class="t">L${l}</div>${o.map(([n,t])=>`<button class="tal ${h.talents.includes(n)?"have":!has&&lv>=l?"can":lv<l||has?"locked":""}" data-tal="${esc(n)}" ${has||lv<l?"disabled":""}><b>${esc(n)}</b><span>${esc(t)}</span></button>`).join("")}</div>`}).join("")}</div>`}
+    <h4 style="margin:14px 0 4px;color:var(--gold)">Lessons</h4>${h.lessons.length?`<ul class="ledger">${h.lessons.map(l=>`<li>${esc(l)}</li>`).join("")}</ul>`:`<p class="tiny">None yet. A quest sent back from the Proving ground leaves a lesson here.</p>`}
+    <h4 style="margin:14px 0 4px;color:var(--gold)">Harness</h4><p class="tiny" style="margin:0">${K.person?"A person, not an agent: no harness.":HARNESS.map(p=>(h.harness.includes(p.id)?"✓ ":"✗ ")+p.name).join(" · ")+` · allowed: ${esc(h.allow.join(", ")||"none")}`}</p>
+    <div class="nav2" style="justify-content:flex-start"><button data-edit="${h.id}">Refit in the Forge</button><button data-dismiss="${h.id}">Dismiss hero</button></div>
+  </div></div>`;
+  const cv=heroCanvas(h);$("[data-ts]").replaceWith(cv);
+}
+$("#tlist").addEventListener("click",e=>{const b=e.target.closest("[data-th]");if(b){TH=b.dataset.th;renderTrain()}});
+$("#tsheet").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;const h=S.heroes[TH];
+  if(b.dataset.tal&&talentPoints(h)>0){h.talents.push(b.dataset.tal);save();sfx.level();toast(`${h.name} trained ${b.dataset.tal}`);renderAll()}
+  if(b.dataset.edit){F={step:3,h:JSON.parse(JSON.stringify(h)),editing:true};renderForge();go("forge")}
+  if(b.dataset.dismiss){Object.keys(S.slots).forEach(k=>S.slots[k]=S.slots[k].filter(x=>x!==h.id));delete S.heroes[h.id];save();renderAll();toast(`${h.name} leaves the guild`)}});
+
+/* ------------------------------------------------------------------ demo guild */
+function demo(){
+  S=blank();const add=(cls,name,origin,o={})=>{const id="h"+(S.seq++);S.heroes[id]={id,name,cls,origin,skin:o.skin||0,hair:o.hair||0,tunic:null,harness:CLASSES[cls].person?[]:HARNESS.map(p=>p.id),allow:[...ALLOW_DEFAULT[cls]],xp:o.xp||0,talents:o.t||[],lessons:o.l||[],record:o.r||{won:0,back:0,defects:0}};return id};
+  const put=(id,k)=>(S.slots[k]=S.slots[k]||[]).push(id);
+  put(add("master","Yen the Steady","Person",{skin:4,hair:0}),"keep:master");
+  put(add("herald","Quill-voice","Cowork",{skin:1,hair:2,xp:120,t:["Owner's words"]}),"keep:herald");
+  put(add("leader","Marshal Kestrel","Claude Code",{skin:2,hair:1,xp:270,t:["True status"]}),"table:leader");
+  put(add("ranger","Fen Lookout","Scheduled task",{skin:0,hair:3,xp:60}),"tower:ranger");
+  const a1=add("artificer","Brannoc Forgehand","Claude Code",{skin:1,hair:4,xp:310,t:["Red first"],l:["Name the root cause in the PR text, not just the symptom"],r:{won:3,back:1,defects:0}});
+  const a2=add("artificer","Tamsin Gearwright","Gemini CLI",{skin:3,hair:0,xp:40});
+  const p1=add("paladin","Sera Truecheck","Codex",{skin:0,hair:2,xp:260,t:["Re-run it"],r:{won:0,back:0,defects:2}});
+  const r1=add("rogue","Nyx Shadowprobe","Claude Code",{skin:2,hair:5,xp:90});
+  add("scribe","Ollo Inkwell","Copilot",{skin:4,hair:3,xp:0});
+  const q=(t,b,i,ts,st)=>{const num=String(S.qseq++).padStart(3,"0");S.quests.push({id:"q"+num,num,title:t,branch:b,words:"Ready for the pilot",intent:i,tests:ts,stop:"Upload, open a pull request, write the evaluator brief. Don't merge.",status:st});return "q"+num};
+  const q1=q("Add rate limiting to the API","feat/rate-limit","Every client gets a fair share; no request is dropped silently.","rate-limit unit tests, load test","returned");
+  const q2=q("Fix the flaky checkout test","fix/flaky-checkout","The test fails only when checkout is really broken.","checkout tests x50","planned");
+  put(a1,q1+":artificer");put(p1,q1+":paladin");put(r1,q1+":rogue");put(a2,q2+":artificer");put(p1,q2+":paladin");
+  S.chron=[{t:"2026-11-04",q:"000",who:"Brannoc Forgehand",x:100,why:"quest accepted",sealed:true,pr:"https://github.com/example/shop/pull/7"},{t:"2026-11-04",q:"000",who:"Sera Truecheck",x:60,why:"independent review",sealed:true,pr:"https://github.com/example/shop/pull/7"}];
+  save();renderAll();toast("Demo guild loaded");
+}
+
+/* ------------------------------------------------------------------ worlds: the skin changes, the rules underneath don't */
+const ROLEKEYS=["master","herald","leader","artificer","paladin","rogue","scribe","ranger"];
+const WORLDS={
+  realm:{label:"Fantasy Realm",blurb:"Guild halls, quests and a war map",title:"Agent Company · Guild",sub:"Forge your agents as heroes, fit each with the OpenProof harness, and send them on quests from the war map. Heroes level up only on proven work.",
+    tabs:["Forge","War map","Proving ground","Training hall"],names:["Guild Master","Herald","Raid Leader","Artificer","Paladin","Rogue","Scribe","Ranger"],posts:{keep:"Keep",table:"War Table",tower:"Watchtower"},
+    Q:"Quest",qs:"quests",horn:"Sound the horn (deploy)",hornDone:"The horn sounds: quests deployed",xp:"XP",lvup:"LEVEL UP",forgeH:"Forge a hero",trayH:"Your heroes",newQ:"New quest",map:"realm",
+    gear:["Worktree Helm","Deny-rule Plate","No-merge Gauntlets","Allowlist Belt","Constructed-data Boots","Evidence Amulet"],font:'"Cinzel",Georgia,serif',dark:null,light:null},
+  neon:{label:"Neon City",blurb:"An open city of crews, jobs and rep",title:"Agent Company · Neon City",sub:"Build your crew, kit each member with the OpenProof harness, and green-light jobs across the city. Rep only comes from proven work.",
+    tabs:["Crew garage","City map","Proof desk","Gym"],names:["Boss","Fixer","Dispatcher","Mechanic","Inspector","Infiltrator","Fact-checker","Lookout"],posts:{keep:"Penthouse",table:"Dispatch",tower:"Rooftop"},
+    Q:"Job",qs:"jobs",horn:"Green-light the jobs",hornDone:"Jobs green-lit: the crew rolls out",xp:"Rep",lvup:"REP UP",forgeH:"Recruit crew",trayH:"Your crew",newQ:"New job",map:"neon",
+    gear:["Worktree Cap","Deny-rule Vest","No-merge Gloves","Allowlist Belt","Constructed-data Sneakers","Evidence Badge"],font:'"Bungee",Impact,sans-serif',
+    dark:{"--gold":"#ff3fa4","--gold-2":"#ffc2e4","--night":"#07070f","--stone":"#10101c","--stone-2":"#161628","--stone-3":"#1f1f38","--edge":"#3a2f62","--edge-2":"#7a3fb0","--map":"#0a0d1c","--ink":"#eef0ff","--dim":"#a9a8d0","--faint":"#7a78a8"},
+    light:{"--gold":"#c4126f","--gold-2":"#7a0a45","--map":"#d9dcf0","--night":"#eceaf6","--stone":"#f7f6fc","--stone-2":"#f0eef9","--stone-3":"#e6e2f4","--edge":"#b3a8d8","--edge-2":"#8b78c4","--ink":"#1d1a33","--dim":"#4d4870","--faint":"#7a7598"}},
+  sky:{label:"Sky Islands",blurb:"A pixel platformer of levels and stars",title:"Agent Company · Sky Islands",sub:"Pick your players, give each the OpenProof power-ups, and clear levels across the islands. Stars only come from proven work.",
+    tabs:["Character select","World map","Score check","Practice"],names:["Player One","Guide","Pilot","Builder","Judge","Trickster","Narrator","Lookout"],posts:{keep:"Castle",table:"Control Tower",tower:"Cloud Lookout"},
+    Q:"Level",qs:"levels",horn:"Press Start (deploy)",hornDone:"Start! Levels in play",xp:"Stars",lvup:"LEVEL UP",forgeH:"Choose a player",trayH:"Your players",newQ:"New level",map:"sky",
+    gear:["Worktree Beanie","Deny-rule Vest","No-merge Gloves","Allowlist Belt","Constructed-data Boots","Evidence Star"],font:'"Press Start 2P",monospace',
+    dark:{"--gold":"#ffd23f","--gold-2":"#fff1b0","--night":"#16224a","--stone":"#1d2c5c","--stone-2":"#22346b","--stone-3":"#2b3f7e","--edge":"#4a62a8","--edge-2":"#6d86d0","--map":"#2c4f9a","--ink":"#f4f7ff","--dim":"#c3cdf0","--faint":"#94a3d6"},
+    light:{"--gold":"#b07c00","--gold-2":"#6a4a00","--map":"#cfe6ff","--night":"#e3efff","--stone":"#f6faff","--stone-2":"#eef5ff","--stone-3":"#dfeaff","--edge":"#9ab6e6","--edge-2":"#6d8fd0","--ink":"#16244a","--dim":"#3f5080","--faint":"#6a7aa6"}},
+  star:{label:"Star Fleet",blurb:"A ship's crew on missions across a star chart",title:"Agent Company · Star Fleet",sub:"Commission your crew, suit each officer in the OpenProof harness, and launch missions across the chart. Merit only comes from proven work.",
+    tabs:["Shipyard","Star chart","Inspection bay","Simulator"],names:["Admiral","First Officer","Navigator","Engineer","Auditor","Red Team","Comms Officer","Sentry"],posts:{keep:"Bridge",table:"Command Deck",tower:"Sensor Array"},
+    Q:"Mission",qs:"missions",horn:"Launch",hornDone:"Launch: missions under way",xp:"Merit",lvup:"PROMOTED",forgeH:"Commission an officer",trayH:"Your crew",newQ:"New mission",map:"star",
+    gear:["Worktree Helmet","Deny-rule Suit","No-merge Gauntlets","Allowlist Utility Belt","Constructed-data Boots","Evidence Beacon"],font:'"Orbitron",system-ui,sans-serif',
+    dark:{"--gold":"#5ad1ff","--gold-2":"#cdf3ff","--night":"#04060f","--stone":"#0b1020","--stone-2":"#10172d","--stone-3":"#172140","--edge":"#2a3a66","--edge-2":"#3f5d99","--map":"#060a18","--ink":"#e8f1ff","--dim":"#a3b5d6","--faint":"#7385a8"},
+    light:{"--gold":"#0a6e99","--gold-2":"#064a68","--map":"#d7e2f2","--night":"#e6ecf5","--stone":"#f7f9fc","--stone-2":"#eff3f9","--stone-3":"#e1e8f2","--edge":"#a3b4cf","--edge-2":"#6f88ad","--ink":"#0f1a2e","--dim":"#3d4d68","--faint":"#6a7891"}},
+};
+let W=WORLDS.realm, WID="realm";
+const HARNESS_BASE=HARNESS.map(p=>p.name), BASE_TUNIC=Object.fromEntries(ROLEKEYS.map(k=>[k,CLASSES[k].tunic]));
+function customWorld(){const c=S.custom;if(!c)return null;const base=WORLDS[c.map]||WORLDS.realm;
+  return {...base,label:c.name,blurb:"Your own world",title:`Agent Company · ${c.name}`,sub:`Your own world. Same jobs, same harness, same rule: progress only comes from proven work.`,names:c.names,posts:c.posts,Q:c.q,qs:c.qs,xp:c.xp,horn:c.horn,hornDone:`${c.horn}: under way`,
+    newQ:`New ${c.q.toLowerCase()}`,forgeH:"Make a character",trayH:"Your team",lvup:"LEVEL UP",dark:{...(base.dark||{}),"--gold":c.accent},light:{...(base.light||{}),"--gold":c.accent}}}
+const isDark=()=>{const t=document.documentElement.dataset.theme;return t?t==="dark":!matchMedia("(prefers-color-scheme: light)").matches};
+function applyWorld(id){
+  WID=WORLDS[id]||id==="custom"&&S.custom?id:"realm"; W=WID==="custom"?customWorld():WORLDS[WID];
+  const st=document.documentElement.style;["--gold","--gold-2","--night","--stone","--stone-2","--stone-3","--edge","--edge-2","--map","--ink","--dim","--faint","--display"].forEach(k=>st.removeProperty(k));
+  const pal=isDark()?W.dark:W.light; if(pal) Object.entries(pal).forEach(([k,v])=>st.setProperty(k,v)); st.setProperty("--display",W.font);
+  ROLEKEYS.forEach((k,i)=>CLASSES[k].name=W.names[i]); HARNESS.forEach((p,i)=>p.name=W.gear[i]);
+  QSLOTS=QSLOTS.map(([c])=>[c,CLASSES[c].name]);
+  $("#w-title").textContent=W.title;$("#w-sub").textContent=W.sub;document.title=W.title;
+  $$("[data-tab]").forEach(e=>e.textContent=W.tabs[+e.dataset.tab]);$$("[data-lex]").forEach(e=>e.textContent=W[e.dataset.lex]);
+  $("#terrain").innerHTML=terrain();
+  try{localStorage.setItem("agent-company-guild-world",WID)}catch(e){}
+  renderWorlds(); renderForge(); renderAll();
+}
+matchMedia("(prefers-color-scheme: light)").addEventListener?.("change",()=>applyWorld(WID));
+function worldThumb(id){const t={realm:'<rect width="170" height="64" fill="#1c2418"/><path d="M0 50 C40 40 70 56 110 48 S150 56 170 50 V64 H0Z" fill="#2d4c5e"/><path d="M20 30l8-14 8 14zM50 26l8-14 8 14zM120 32l8-14 8 14z" fill="#3d6a37"/><path d="M80 40V22l4 3V18l4 3 4-3v7l4-3v18z" fill="#e3b75a"/>',
+  neon:'<rect width="170" height="64" fill="#0a0d1c"/><g fill="none" stroke-width="2"><rect x="10" y="22" width="24" height="42" stroke="#ff3fa4"/><rect x="42" y="10" width="20" height="54" stroke="#40e0ff"/><rect x="70" y="28" width="30" height="36" stroke="#ffd640"/><rect x="108" y="16" width="22" height="48" stroke="#8cff78"/><rect x="138" y="30" width="24" height="34" stroke="#ff3fa4"/></g>',
+  sky:'<rect width="170" height="64" fill="#5fa8ff"/><circle cx="34" cy="16" r="9" fill="#fff"/><circle cx="46" cy="18" r="7" fill="#fff"/><path d="M14 44h56l-12 12-20 6-16-8z" fill="#9a6e50"/><rect x="12" y="40" width="60" height="5" fill="#5aae46"/><path d="M96 34h56l-10 10-18 6-18-6z" fill="#9a6e50"/><rect x="94" y="30" width="60" height="5" fill="#5aae46"/><path d="M124 10l6 8-6 8-6-8z" fill="#8c5aff"/><circle cx="150" cy="14" r="7" fill="#ff8c5a"/>',
+  star:'<rect width="170" height="64" fill="#04060f"/><g fill="#fff"><circle cx="14" cy="10" r="1"/><circle cx="60" cy="20" r="1.4"/><circle cx="120" cy="8" r="1"/><circle cx="150" cy="40" r="1.2"/><circle cx="90" cy="54" r="1"/></g><circle cx="40" cy="44" r="16" fill="#c87850" opacity=".7"/><ellipse cx="110" cy="30" rx="44" ry="10" fill="none" stroke="#5ad1ff" stroke-dasharray="3 5"/><path d="M104 26l12 4-12 4z" fill="#cdf3ff"/>',
+  custom:'<rect width="170" height="64" fill="#2a2116"/><path d="M85 14v36M67 32h36" stroke="#e3b75a" stroke-width="5" stroke-linecap="round"/>'}[id];return `<svg viewBox="0 0 170 64" aria-hidden="true">${t}</svg>`}
+function renderWorlds(){
+  const cards=Object.entries(WORLDS).map(([id,w])=>`<button class="wcard" data-world="${id}" aria-pressed="${WID===id}">${worldThumb(id)}<div><b>${w.label}</b><small>${w.blurb}</small></div></button>`);
+  cards.push(`<button class="wcard" data-world="custom" aria-pressed="${WID==="custom"}">${worldThumb("custom")}<div><b>${S.custom?esc(S.custom.name):"Your own world"}</b><small>${S.custom?"Tap to play · long-press to edit":"Name every job and place"}</small></div></button>`);
+  $("#worlds").innerHTML=cards.join("");
+}
+$("#worlds").addEventListener("click",e=>{const b=e.target.closest("[data-world]");if(!b)return;const id=b.dataset.world;sfx.fit();
+  if(id==="custom"&&(!S.custom||e.shiftKey||e.altKey))return openCustom(); applyWorld(id); toast(`${W.label}: same rules, new world`)});
+$("#worlds").addEventListener("contextmenu",e=>{const b=e.target.closest('[data-world="custom"]');if(b){e.preventDefault();openCustom()}});
+function openCustom(){const c=S.custom||{name:"My World",names:[...WORLDS.realm.names],posts:{...WORLDS.realm.posts},q:"Quest",qs:"quests",xp:"XP",horn:"Go",map:"realm",accent:"#e3b75a"};
+  $("#cw-name").value=c.name;$("#cw-map").value=c.map;$("#cw-accent").value=c.accent;
+  const F=[...ROLEKEYS.map((k,i)=>[`n${i}`,`${BASE_ROLE[k]} is called`,c.names[i]]),["pk",`Owner's place`,c.posts.keep],["pt",`Coordinator's place`,c.posts.table],["pw",`Watch's place`,c.posts.tower],["q","A task is called",c.q],["qs","Tasks (plural)",c.qs],["xp","Progress points",c.xp],["hn","Deploy button says",c.horn]];
+  $("#cw-fields").innerHTML=F.map(([id,l,v])=>`<div><label class="f" for="cw-${id}">${l}</label><input id="cw-${id}" maxlength="24" value="${esc(v)}" required></div>`).join("");$("#dw").showModal()}
+const BASE_ROLE={master:"Owner",herald:"Chief of staff",leader:"Coordinator",artificer:"Builder",paladin:"Evaluator",rogue:"Challenger",scribe:"Claims officer",ranger:"Watch"};
+$("#dw").addEventListener("close",()=>{if($("#dw").returnValue!=="ok")return;const v=id=>$("#cw-"+id).value.trim();
+  S.custom={name:v("name")||"My World",names:ROLEKEYS.map((k,i)=>v("n"+i)||WORLDS.realm.names[i]),posts:{keep:v("pk"),table:v("pt"),tower:v("pw")},q:v("q")||"Task",qs:v("qs")||"tasks",xp:v("xp")||"XP",horn:v("hn")||"Go",map:$("#cw-map").value,accent:$("#cw-accent").value};
+  save();applyWorld("custom");toast(`${S.custom.name} is ready`)});
+
+/* ------------------------------------------------------------------ handheld mode: D-pad moves focus, A chooses, B backs out, Start deploys, Select changes room */
+const ROOMS=["forge","map","prove","train"];
+function focusables(){const root=$("dialog[open]")||document;return $$('button:not([disabled]),input,select,textarea,.hero,.tok,.slot,[tabindex="0"]',root).filter(e=>e.offsetParent!==null&&!e.closest(".pad")&&!e.closest("section.room:not(.on)"))}
+function moveFocus(dir){const f=focusables();if(!f.length)return;const a=document.activeElement,i=f.indexOf(a);
+  if(i<0){f[0].focus();return}
+  if(dir==="left"||dir==="right"){f[(i+(dir==="right"?1:-1)+f.length)%f.length].focus();return}
+  const r=a.getBoundingClientRect(),cx=r.left+r.width/2,cy=r.top+r.height/2;let best=null,bd=1e9;
+  f.forEach(e=>{if(e===a)return;const q=e.getBoundingClientRect(),dx=q.left+q.width/2-cx,dy=q.top+q.height/2-cy;if(dir==="down"?dy<=4:dy>=-4)return;const d=Math.abs(dy)+Math.abs(dx)*1.6;if(d<bd){bd=d;best=e}});
+  (best||f[(i+(dir==="down"?1:-1)+f.length)%f.length]).focus();document.activeElement.scrollIntoView({block:"nearest",inline:"nearest"})}
+function press(k){try{navigator.vibrate?.(8)}catch(e){}tone(k==="a"?660:k==="b"?440:550,.04,"square",.03);
+  const a=document.activeElement;
+  if(["up","down","left","right"].includes(k))return moveFocus(k);
+  if(k==="a"){if(!a||a===document.body)return moveFocus("right");
+    if(a.matches(".hero,.tok,.slot"))return a.dispatchEvent(new KeyboardEvent("keydown",{key:"Enter",bubbles:true}));
+    if(a.matches('input[type="checkbox"]'))return a.click(); a.click();return}
+  if(k==="b"){const d=$("dialog[open]");if(d)return d.close("cancel");if(picked){picked=null;$$(".hero,.tok").forEach(x=>x.style.outline="");return toast("Cancelled")}
+    const r=ROOMS.find(x=>$("#room-"+x).classList.contains("on"));if(r==="forge"&&F.step>0){F.step--;return renderForge()}return}
+  if(k==="start"){go("map");return horn()}
+  if(k==="select"){const r=ROOMS.findIndex(x=>$("#room-"+x).classList.contains("on"));go(ROOMS[(r+1)%4]);setTimeout(()=>moveFocus("right"),50)}
+}
+$("#pad").addEventListener("pointerdown",e=>{const b=e.target.closest("[data-k]");if(!b)return;e.preventDefault();press(b.dataset.k)});
+document.addEventListener("keydown",e=>{if(!document.body.classList.contains("handheld"))return;if(e.target.matches("input,textarea,select")&&!["Escape"].includes(e.key))return;
+  const m={ArrowUp:"up",ArrowDown:"down",ArrowLeft:"left",ArrowRight:"right",z:"a",x:"b",Escape:"b",Enter:null};if(m[e.key]){e.preventDefault();press(m[e.key])}});
+function setHand(on){document.body.classList.toggle("handheld",on);$("#btn-hand").setAttribute("aria-pressed",on);$("#btn-hand").textContent=on?"Exit handheld":"Handheld mode";try{localStorage.setItem("agent-company-guild-hand",on?"1":"")}catch(e){}if(on)setTimeout(()=>moveFocus("right"),50)}
+$("#btn-hand").onclick=()=>setHand(!document.body.classList.contains("handheld"));
+
+/* ------------------------------------------------------------------ rooms, export/import, local mode */
+function go(room){$$("nav.tabs button").forEach(b=>b.setAttribute("aria-selected",b.dataset.room===room));$$("section.room").forEach(s=>s.classList.toggle("on",s.id==="room-"+room));try{localStorage.setItem("agent-company-guild-room",room)}catch(e){}}
+$$("nav.tabs button").forEach(b=>b.onclick=()=>go(b.dataset.room));
+function renderAll(){renderMap();renderProve();renderTrain()}
+$("#btn-demo").onclick=demo;
+$("#btn-sound").onclick=e=>{SOUND=!SOUND;e.currentTarget.textContent=`Sound: ${SOUND?"on":"off"}`;e.currentTarget.setAttribute("aria-pressed",SOUND)};
+$("#btn-export").onclick=()=>{const t=JSON.stringify(S,null,1);navigator.clipboard?.writeText(t).then(()=>toast("Guild copied: paste it into a .json file to keep or share"),()=>{$("#files").classList.add("open");$("#fbody").textContent=t;go("map");toast("Guild shown under Readiness: select and copy it")})};
+$("#btn-import").onclick=()=>$("#imp").click();
+$("#imp").onchange=async e=>{try{const d=JSON.parse(await e.target.files[0].text());if(!d.heroes)throw 0;S={...blank(),...d};save();renderAll();toast("Guild imported")}catch(x){toast("That file isn't a guild export")}};
+const TOKEN=new URLSearchParams(location.search).get("token"),LOCAL=!!TOKEN&&/^(127\.0\.0\.1|localhost)$/.test(location.hostname);
+async function api(p,body){const r=await fetch(p+"?token="+encodeURIComponent(TOKEN),body?{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)}:{});if(!r.ok)throw new Error(await r.text());return r.json()}
+if(LOCAL){$("#btn-write").hidden=false;
+  api("/api/info").then(i=>{$("#localnote").hidden=false;$("#localnote").textContent=`Local mode: writes into ${i.ops}. Instruction files already there are never overwritten.`}).catch(()=>{});
+  api("/api/guild").then(g=>{if(g&&g.heroes){S={...blank(),...g};renderAll();toast("Loaded the guild saved in your repo")}}).catch(()=>{});
+  $("#btn-write").onclick=async()=>{if(!FILES.length)horn();try{const r=await api("/api/deploy",{files:FILES,guild:S});toast(`Wrote ${r.written.length} files${r.kept.length?`, kept ${r.kept.length}`:""}`);$("#localnote").textContent=`Written: ${r.written.join(", ")||"none"}. Kept: ${r.kept.join(", ")||"none"}.${r.refused.length?` Refused: ${r.refused.join(", ")}.`:""}`}catch(e){toast("Could not write: "+e.message)}};
+}
+newDraft();
+try{const s=JSON.parse(localStorage.getItem("agent-company-guild")||"null");if(s&&s.heroes){S={...blank(),...s}}else demo()}catch(e){demo()}
+let w0="realm";try{w0=localStorage.getItem("agent-company-guild-world")||new URLSearchParams(location.search).get("world")||"realm"}catch(e){}
+applyWorld(w0);
+try{if(localStorage.getItem("agent-company-guild-hand")||matchMedia("(max-width:560px) and (pointer:coarse)").matches&&!localStorage.getItem("agent-company-guild-hand-seen"))setHand(!!localStorage.getItem("agent-company-guild-hand"))}catch(e){}
+try{const r=localStorage.getItem("agent-company-guild-room");if(r)go(r)}catch(e){}
+</script>

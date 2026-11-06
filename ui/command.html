@@ -1,0 +1,339 @@
+<title>Agent Company Command</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a war-table map. Roster rail on the left, the field (HQ, command post, watchtower, mission zones) in the middle, readiness and orders on the right; one column on phones. */
+:root{
+  --ground:#0f1513; --table:#16201c; --plate:#1d2a25; --plate-2:#24342d; --line:#34493f; --ink:#e8efe9; --dim:#9db0a5; --faint:#6b8075;
+  --brass:#d9b25f; --ok:#58c48b; --warn:#e5b04a; --bad:#e2685a;
+  --owner:#f0d18a; --chief:#b9a3e8; --coord:#6fb7ff; --builder:#ff9d5c; --challenger:#ff6f91; --evaluator:#58d0c8; --claims:#c9d66a; --watch:#9fb3ff;
+  --display:"Rajdhani","Arial Narrow",system-ui,sans-serif; --body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif; --mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+  color-scheme:dark;
+}
+html,body{background:var(--ground);color:var(--ink)}
+body{font-family:var(--body);font-size:14px;line-height:1.45;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px 40px;
+  background-image:radial-gradient(circle at 1px 1px,rgba(157,176,165,.10) 1px,transparent 0);background-size:22px 22px}
+h1,h2,h3{font-family:var(--display);letter-spacing:.02em;text-wrap:balance;margin:0}
+.top{display:flex;flex-wrap:wrap;gap:12px 24px;align-items:end;justify-content:space-between;max-width:1360px;margin:0 auto 16px}
+.top h1{font-size:34px;font-weight:700;line-height:1}
+.top h1 span{color:var(--brass)}
+.top p{margin:6px 0 0;color:var(--dim);max-width:68ch}
+.bar{display:flex;gap:8px;flex-wrap:wrap}
+button{font:600 13px var(--body);color:var(--ink);background:var(--plate-2);border:1px solid var(--line);border-radius:8px;padding:8px 12px;cursor:pointer}
+button:hover{border-color:var(--brass)} button:focus-visible,.tok:focus-visible,.slot:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
+button.primary{background:var(--brass);color:#1b1608;border-color:var(--brass)}
+.grid{display:grid;grid-template-columns:230px minmax(0,1fr) 320px;gap:16px;max-width:1360px;margin:0 auto}
+@media (max-width:1100px){.grid{grid-template-columns:200px minmax(0,1fr)}.side{grid-column:1/-1}}
+@media (max-width:700px){.grid{grid-template-columns:minmax(0,1fr)}}
+.panel{background:var(--table);border:1px solid var(--line);border-radius:12px;padding:14px;min-width:0}
+.label{font:600 11px var(--body);letter-spacing:.14em;text-transform:uppercase;color:var(--faint);margin:0 0 10px}
+/* roster */
+.roster{display:flex;flex-direction:column;gap:8px}
+@media (max-width:700px){.roster{flex-direction:row;flex-wrap:wrap}}
+.unitcard{display:flex;gap:10px;align-items:center;padding:8px;border:1px solid var(--line);border-radius:10px;background:var(--plate);cursor:grab;touch-action:none;user-select:none}
+.unitcard small{display:block;color:var(--dim);font-size:12px;line-height:1.3}
+.unitcard b{font-family:var(--display);font-size:16px;font-weight:700;letter-spacing:.03em}
+.crest{flex:none;width:34px;height:34px;border-radius:9px;display:grid;place-items:center;font:700 15px var(--display);color:#111;box-shadow:inset 0 -3px 0 rgba(0,0,0,.25)}
+.tools{margin-top:12px;display:flex;flex-direction:column;gap:6px}
+.tools select{width:100%;font:500 13px var(--body);background:var(--plate);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:7px}
+/* field */
+.field{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+@media (max-width:900px){.field{grid-template-columns:minmax(0,1fr)}}
+.zone{background:var(--plate);border:1px solid var(--line);border-radius:12px;padding:12px;position:relative;min-width:0}
+.zone h3{font-size:18px;font-weight:700;display:flex;justify-content:space-between;gap:8px;align-items:baseline}
+.zone h3 em{font:500 11px var(--body);font-style:normal;color:var(--faint);letter-spacing:.06em;text-transform:uppercase}
+.zone p.hint{margin:4px 0 10px;color:var(--dim);font-size:12.5px}
+.missions{grid-column:1/-1;display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px}
+.mission{background:var(--plate);border:1px solid var(--line);border-radius:12px;padding:12px;min-width:0;position:relative}
+.mission .num{font:700 13px var(--mono);color:var(--brass)}
+.mission h3{font-size:19px;margin:2px 0 4px}
+.mission .meta{font:400 12px var(--mono);color:var(--dim);overflow-wrap:anywhere}
+.mission .meta b{color:var(--ink);font-weight:500}
+.mission .intent{font-size:12.5px;color:var(--dim);margin:6px 0 8px}
+.mission .x{position:absolute;right:8px;top:8px;padding:2px 8px;font-size:12px}
+.slots{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.slot{min-height:58px;border:1.5px dashed var(--line);border-radius:10px;padding:6px;display:flex;flex-wrap:wrap;gap:6px;align-content:flex-start;position:relative;transition:border-color .15s,background .15s}
+.slot::before{content:attr(data-name);position:absolute;left:8px;top:-8px;padding:0 4px;background:var(--plate);font:600 10px var(--body);letter-spacing:.12em;text-transform:uppercase;color:var(--faint)}
+.slot.hot{border-color:var(--brass);background:rgba(217,178,95,.08)}
+.slot.nope{border-color:var(--bad);background:rgba(226,104,90,.10);animation:shake .3s}
+@keyframes shake{25%{transform:translateX(-3px)}75%{transform:translateX(3px)}}
+@media (prefers-reduced-motion:reduce){.slot.nope{animation:none}}
+.tok{display:flex;align-items:center;gap:6px;padding:4px 8px 4px 4px;border-radius:999px;background:var(--plate-2);border:1px solid var(--line);font:600 12px var(--body);cursor:grab;touch-action:none;user-select:none;max-width:100%}
+.tok .crest{width:24px;height:24px;border-radius:999px;font-size:12px}
+.tok span.t{color:var(--dim);font-weight:500;font-size:11px}
+.ghost{position:fixed;pointer-events:none;z-index:50;transform:translate(-50%,-50%) scale(1.06);box-shadow:0 12px 30px rgba(0,0,0,.5)}
+/* side */
+.side{display:flex;flex-direction:column;gap:16px;min-width:0}
+.ready{display:flex;align-items:center;gap:14px}
+.ring{--p:0;width:86px;height:86px;border-radius:50%;flex:none;display:grid;place-items:center;background:conic-gradient(var(--c,var(--ok)) calc(var(--p)*1%),var(--plate-2) 0)}
+.ring b{width:68px;height:68px;border-radius:50%;background:var(--table);display:grid;place-items:center;font:700 24px var(--display);font-variant-numeric:tabular-nums}
+.ready h2{font-size:22px}.ready p{margin:2px 0 0;color:var(--dim);font-size:12.5px}
+.checks{list-style:none;margin:12px 0 0;padding:0;display:flex;flex-direction:column;gap:6px;max-height:340px;overflow:auto}
+.checks li{display:grid;grid-template-columns:14px minmax(0,1fr);gap:8px;font-size:12.5px;line-height:1.35}
+.checks li i{width:10px;height:10px;border-radius:3px;margin-top:4px}
+.checks .bad i{background:var(--bad)}.checks .warn i{background:var(--warn)}.checks .ok i{background:var(--ok)}
+.checks .ok{color:var(--dim)}
+form{display:flex;flex-direction:column;gap:8px}
+label{font:600 11px var(--body);letter-spacing:.08em;text-transform:uppercase;color:var(--faint);display:flex;flex-direction:column;gap:4px}
+input,textarea{font:400 13px var(--body);color:var(--ink);background:var(--plate);border:1px solid var(--line);border-radius:8px;padding:7px 9px;text-transform:none;letter-spacing:0}
+textarea{min-height:52px;resize:vertical}
+.out{display:none}
+.out.open{display:block}
+.out pre{font:400 12px/1.5 var(--mono);background:#0b100e;border:1px solid var(--line);border-radius:10px;padding:12px;white-space:pre-wrap;overflow-wrap:anywhere;max-height:360px;overflow:auto;margin:8px 0 0}
+.filetabs{display:flex;gap:6px;flex-wrap:wrap}
+.filetabs button{padding:5px 9px;font:500 12px var(--mono)}
+.filetabs button[aria-pressed="true"]{border-color:var(--brass);color:var(--brass)}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--plate-2);border:1px solid var(--brass);padding:9px 14px;border-radius:10px;font-weight:600;z-index:60;opacity:0;transition:opacity .2s}
+.toast.on{opacity:1}
+.foot{max-width:1360px;margin:18px auto 0;color:var(--faint);font-size:12px}
+</style>
+
+<header class="top">
+  <div>
+    <h1>Agent Company <span>Command</span></h1>
+    <p>Drag agents from the roster onto the field. Every agent has one job. The readiness ring shows what is missing before you deploy, then Deploy writes the files your agents work from. On a phone: tap an agent, then tap a slot.</p>
+  </div>
+  <div class="bar">
+    <button id="btn-load">Load OpenProof example</button>
+    <button id="btn-clear">Clear field</button>
+    <button id="btn-deploy" class="primary">Deploy</button>
+  </div>
+</header>
+
+<main class="grid">
+  <aside class="panel">
+    <p class="label">Roster</p>
+    <div class="roster" id="roster"></div>
+    <div class="tools">
+      <p class="label" style="margin:8px 0 0">New agents run on</p>
+      <select id="tool" aria-label="Tool for new agents">
+        <option>Claude Code</option><option>Codex</option><option>Cursor</option><option>GitHub Copilot</option><option>Gemini CLI</option><option>Cowork</option><option>Scheduled task</option>
+      </select>
+    </div>
+  </aside>
+
+  <section class="panel" aria-label="Field">
+    <div class="field" id="field"></div>
+  </section>
+
+  <aside class="side">
+    <div class="panel">
+      <div class="ready"><div class="ring" id="ring"><b id="pct">0</b></div><div><h2 id="rtitle">Not ready</h2><p id="rsub">Place an owner and a coordinator to begin.</p></div></div>
+      <ul class="checks" id="checks"></ul>
+    </div>
+    <div class="panel">
+      <p class="label">New mission</p>
+      <form id="mform">
+        <label>Title<input id="m-title" required value="Fix the Declaration Card findings"></label>
+        <label>Branch<input id="m-branch" required value="fix/drop54-r3"></label>
+        <label>Owner's words<input id="m-words" value="Full POC, ready product first"></label>
+        <label>Intent (why, and what good looks like)<textarea id="m-intent">Each declared line is compared exactly as written, so a near-match never shows as verified.</textarea></label>
+        <label>Tests to run<input id="m-tests" value="drop 54, drop 50 and declaration tests"></label>
+        <label>Stop point<input id="m-stop" value="Upload, open a pull request, write the evaluator brief. Don't merge."></label>
+        <button type="submit">Add mission to the field</button>
+      </form>
+    </div>
+    <div class="panel out" id="out">
+      <p class="label">Deployment orders</p>
+      <div class="filetabs" id="filetabs"></div>
+      <pre id="filebody"></pre>
+      <div class="bar" style="margin-top:8px"><button id="btn-copy">Copy this file</button><button id="btn-write" class="primary" hidden>Write to my repo</button></div>
+      <p id="localnote" class="hint" style="color:var(--dim);font-size:12px;margin:8px 0 0" hidden></p>
+    </div>
+  </aside>
+</main>
+<p class="foot" id="foot">Owner-only actions stay with you: merging, releasing and decisions. Deploy writes the files only; it doesn't start agents. Put them in <code>docs/ops/</code> of your repository and tell your coordinator to begin. To write them straight into a repository, run the local version: <code>python3 agent_company.py ui</code>.</p>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+const ROLES = {
+  owner:{name:"Owner",letter:"O",color:"var(--owner)",does:"Direction, merges, releases, decisions",never:"builds",person:true},
+  chief:{name:"Chief of staff",letter:"C",color:"var(--chief)",does:"Writes instructions, reads reports",never:"builds or merges"},
+  coord:{name:"Coordinator",letter:"K",color:"var(--coord)",does:"Works the inbox, one worktree each",never:"builds in the main folder or merges"},
+  builder:{name:"Builder",letter:"B",color:"var(--builder)",does:"One branch: tests first, then the fix",never:"reviews own work or merges"},
+  challenger:{name:"Challenger",letter:"X",color:"var(--challenger)",does:"Tries to break the work",never:"fixes"},
+  evaluator:{name:"Evaluator",letter:"E",color:"var(--evaluator)",does:"Independent review, clean checkout",never:"edits the builder's branch"},
+  claims:{name:"Claims officer",letter:"Q",color:"var(--claims)",does:"Checks public words against evidence",never:"approves content"},
+  watch:{name:"Watch",letter:"W",color:"var(--watch)",does:"Reads status, pings the owner",never:"anything else"},
+};
+const ZONES = [
+  {id:"hq",title:"HQ",tag:"owner keeps 3 jobs",hint:"The owner directs, judges and repairs. The chief of staff turns goals into orders.",slots:[["owner","Owner"],["chief","Chief of staff"]]},
+  {id:"cp",title:"Command post",tag:"exactly one",hint:"One coordinator works the inbox in order and keeps STATUS true.",slots:[["coord","Coordinator"]]},
+  {id:"tower",title:"Watchtower",tag:"2–3 times a day",hint:"A scheduled watch reads STATUS and tells the owner what needs them.",slots:[["watch","Watch"]]},
+];
+const MSLOTS = [["builder","Builder"],["evaluator","Evaluator"],["challenger","Challenger"],["claims","Claims officer"]];
+let S = {units:{}, place:{}, missions:[], seq:1, mseq:1};
+const $ = (s,r=document)=>r.querySelector(s), $$=(s,r=document)=>[...r.querySelectorAll(s)];
+const esc = s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const save=()=>{try{localStorage.setItem("agent-company",JSON.stringify(S))}catch(e){}};
+function toast(m){const t=$("#toast");t.textContent=m;t.classList.add("on");clearTimeout(toast.h);toast.h=setTimeout(()=>t.classList.remove("on"),2200)}
+function newUnit(role,tool){const id="u"+(S.seq++);S.units[id]={id,role,tool:ROLES[role].person?"Person":tool};return id}
+
+/* ------- render ------- */
+function crest(role){return `<span class="crest" style="background:${ROLES[role].color}">${ROLES[role].letter}</span>`}
+function renderRoster(){
+  $("#roster").innerHTML=Object.entries(ROLES).map(([k,r])=>`<div class="unitcard" tabindex="0" role="button" data-role="${k}" aria-label="${r.name}: drag onto a slot, or press Enter then choose a slot">${crest(k)}<div><b>${r.name}</b><small>${r.does}</small></div></div>`).join("");
+}
+function tokHTML(id){const u=S.units[id];return `<div class="tok" tabindex="0" data-unit="${id}" aria-label="${ROLES[u.role].name} on ${esc(u.tool)}">${crest(u.role)}${ROLES[u.role].name}<span class="t">${esc(u.tool)}</span></div>`}
+function slotHTML(key,accept,name){const ids=Object.keys(S.place).filter(u=>S.place[u]===key);return `<div class="slot" tabindex="0" data-slot="${key}" data-accept="${accept}" data-name="${name}">${ids.map(tokHTML).join("")}</div>`}
+function renderField(){
+  const z=ZONES.map(zn=>`<div class="zone"><h3>${zn.title}<em>${zn.tag}</em></h3><p class="hint">${zn.hint}</p><div class="slots" style="grid-template-columns:repeat(${zn.slots.length},minmax(0,1fr))">${zn.slots.map(([a,n])=>slotHTML(zn.id+":"+a,a,n)).join("")}</div></div>`).join("");
+  const m=S.missions.map(ms=>`<article class="mission"><button class="x" data-del="${ms.id}" aria-label="Remove mission ${ms.num}">✕</button><div class="num">${ms.num}</div><h3>${esc(ms.title)}</h3>
+    <div class="meta">branch <b>${esc(ms.branch)}</b></div><p class="intent">${esc(ms.intent||"No intent written yet.")}</p>
+    <div class="slots">${MSLOTS.map(([a,n])=>slotHTML(ms.id+":"+a,a,n)).join("")}</div></article>`).join("");
+  $("#field").innerHTML=z+`<div class="missions">${m||'<div class="zone"><h3>No missions yet</h3><p class="hint">Add one with the New mission form, or load the OpenProof example.</p></div>'}</div>`;
+  $$("[data-del]").forEach(b=>b.onclick=()=>{const id=b.dataset.del;Object.keys(S.place).forEach(u=>{if(S.place[u].startsWith(id+":")){delete S.place[u];delete S.units[u]}});S.missions=S.missions.filter(x=>x.id!==id);refresh()});
+}
+
+/* ------- rules (the readiness check) ------- */
+function rules(){
+  const R=[],at=(k)=>Object.keys(S.place).filter(u=>S.place[u]===k).map(u=>S.units[u]);
+  const add=(lvl,text,w=1)=>R.push({lvl,text,w});
+  const owner=at("hq:owner"), coord=at("cp:coord"), chief=at("hq:chief"), watch=at("tower:watch");
+  owner.length===1?add("ok","Owner in place: merges and decisions stay with a person",3):add("bad",owner.length?"Only one owner: decisions need one accountable person":"No owner: someone has to direct, judge and merge",3);
+  coord.length===1?add("ok","One coordinator",3):add("bad",coord.length?`${coord.length} coordinators: they will overwrite each other's status`:"No coordinator: nobody works the inbox",3);
+  chief.length?add("ok","Chief of staff writes the orders"):add("warn","No chief of staff: the owner writes every instruction");
+  watch.length?add("ok","Watch reports to the owner"):add("warn","No watch: you only learn about blocks when you look");
+  if(!S.missions.length) add("bad","No missions on the field",2);
+  const branches={};
+  S.missions.forEach(m=>{
+    const b=at(m.id+":builder"), e=at(m.id+":evaluator"), c=at(m.id+":challenger");
+    const tag=`${m.num} ${m.title}`;
+    b.length===1?add("ok",`${tag}: one builder`,2):add("bad",b.length?`${tag}: ${b.length} builders on one branch`:`${tag}: no builder`,2);
+    e.length?add("ok",`${tag}: independent evaluator`,2):add("bad",`${tag}: no evaluator; nobody checks the builder`,2);
+    if(b.length&&e.length&&e.every(x=>x.tool===b[0].tool)) add("warn",`${tag}: evaluator runs on the same tool as the builder (${b[0].tool}); a different vendor catches more`);
+    c.length?add("ok",`${tag}: challenger assigned`):add("warn",`${tag}: no challenger to try to break it`);
+    if(/^(main|master|develop\/|release\/)/.test(m.branch)) add("bad",`${tag}: builds straight on a protected branch (${m.branch})`,2);
+    if(branches[m.branch]) add("bad",`${tag}: shares branch ${m.branch} with ${branches[m.branch]}`,2); branches[m.branch]=m.num;
+    /don'?t merge|do not merge/i.test(m.stop)?add("ok",`${tag}: stop point says don't merge`):add("bad",`${tag}: stop point must say "Don't merge"`,2);
+    m.tests?add("ok",`${tag}: tests named`):add("warn",`${tag}: no tests named`);
+    m.words?add("ok",`${tag}: owner's words recorded`):add("warn",`${tag}: owner's words missing`);
+    m.intent?add("ok",`${tag}: intent written`):add("warn",`${tag}: no intent; agents can't adapt when the plan breaks`);
+  });
+  return R;
+}
+function renderReady(){
+  const R=rules(), tot=R.reduce((s,r)=>s+r.w,0), got=R.reduce((s,r)=>s+(r.lvl==="ok"?r.w:r.lvl==="warn"?r.w*.5:0),0);
+  const p=tot?Math.round(got/tot*100):0, bad=R.filter(r=>r.lvl==="bad").length, warn=R.filter(r=>r.lvl==="warn").length;
+  const ring=$("#ring"); ring.style.setProperty("--p",p); ring.style.setProperty("--c",bad?"var(--bad)":warn?"var(--warn)":"var(--ok)");
+  $("#pct").textContent=p;
+  $("#rtitle").textContent=bad?"Not ready":warn?"Ready, with warnings":"Ready to deploy";
+  $("#rsub").textContent=bad?`${bad} blocking, ${warn} warnings`:warn?`${warn} warnings`:"Every check passes";
+  const order={bad:0,warn:1,ok:2};
+  $("#checks").innerHTML=R.sort((a,b)=>order[a.lvl]-order[b.lvl]).map(r=>`<li class="${r.lvl}"><i></i><span>${esc(r.text)}</span></li>`).join("");
+  return bad;
+}
+function refresh(){renderField();renderReady();save()}
+
+/* ------- drag and drop (pointer events: mouse, pen and touch) ------- */
+let drag=null, picked=null;
+function accepts(slot,role){return slot.dataset.accept===role}
+function place(unitId,slot){
+  const u=S.units[unitId];
+  if(!accepts(slot,u.role)){slot.classList.add("nope");setTimeout(()=>slot.classList.remove("nope"),400);toast(`${ROLES[u.role].name} can't take the ${slot.dataset.name} slot`);return false}
+  S.place[unitId]=slot.dataset.slot; refresh(); toast(`${ROLES[u.role].name} deployed`); return true;
+}
+document.addEventListener("pointerdown",e=>{
+  const card=e.target.closest(".unitcard,.tok"); if(!card) return;
+  e.preventDefault();
+  const fromRoster=card.classList.contains("unitcard");
+  const g=card.cloneNode(true); g.classList.add("ghost"); g.style.width=card.offsetWidth+"px"; document.body.appendChild(g);
+  drag={card,fromRoster,role:fromRoster?card.dataset.role:S.units[card.dataset.unit].role,unit:fromRoster?null:card.dataset.unit,g,x0:e.clientX,y0:e.clientY,moved:false};
+  g.style.left=e.clientX+"px"; g.style.top=e.clientY+"px"; g.style.opacity="0";
+});
+document.addEventListener("pointermove",e=>{
+  if(!drag) return;
+  if(Math.hypot(e.clientX-drag.x0,e.clientY-drag.y0)>6){drag.moved=true;drag.g.style.opacity="1"}
+  drag.g.style.left=e.clientX+"px"; drag.g.style.top=e.clientY+"px";
+  if(drag.moved){ if(e.clientY<70) scrollBy(0,-18); else if(e.clientY>innerHeight-70) scrollBy(0,18); }
+  $$(".slot").forEach(s=>s.classList.remove("hot"));
+  const s=document.elementFromPoint(e.clientX,e.clientY)?.closest(".slot"); if(s&&drag.moved&&accepts(s,drag.role)) s.classList.add("hot");
+});
+document.addEventListener("pointerup",e=>{
+  if(!drag) return; const d=drag; drag=null; d.g.remove(); $$(".slot").forEach(s=>s.classList.remove("hot"));
+  if(!d.moved){ pick(d); return }
+  const s=document.elementFromPoint(e.clientX,e.clientY)?.closest(".slot");
+  if(s){ const id=d.unit||newUnit(d.role,$("#tool").value); if(!place(id,s)&&!d.unit) delete S.units[id]; }
+  else if(d.unit && e.target.closest("#roster")){ delete S.place[d.unit]; delete S.units[d.unit]; refresh(); toast("Agent stood down"); }
+});
+/* tap/keyboard: pick an agent, then pick a slot */
+function pick(d){ picked=d; $$(".unitcard,.tok").forEach(c=>c.style.outline=""); d.card.style.outline="2px solid var(--brass)"; toast(`${ROLES[d.role].name} selected: tap a slot`); }
+document.addEventListener("click",e=>{
+  const s=e.target.closest(".slot"); if(!s||!picked) return;
+  const id=picked.unit||newUnit(picked.role,$("#tool").value); if(!place(id,s)&&!picked.unit) delete S.units[id]; picked=null;
+});
+document.addEventListener("keydown",e=>{
+  const c=e.target.closest(".unitcard,.tok"), s=e.target.closest(".slot");
+  if(e.key==="Enter"||e.key===" "){ if(c){e.preventDefault();pick({card:c,fromRoster:c.classList.contains("unitcard"),role:c.classList.contains("unitcard")?c.dataset.role:S.units[c.dataset.unit].role,unit:c.dataset.unit||null})}
+    else if(s&&picked){e.preventDefault();s.click()} }
+  if((e.key==="Delete"||e.key==="Backspace")&&c&&c.dataset.unit){delete S.place[c.dataset.unit];delete S.units[c.dataset.unit];refresh();toast("Agent stood down")}
+});
+
+/* ------- missions ------- */
+$("#mform").addEventListener("submit",e=>{
+  e.preventDefault();
+  const num=String(S.mseq++).padStart(3,"0");
+  S.missions.push({id:"m"+num,num,title:$("#m-title").value.trim(),branch:$("#m-branch").value.trim(),words:$("#m-words").value.trim(),intent:$("#m-intent").value.trim(),tests:$("#m-tests").value.trim(),stop:$("#m-stop").value.trim()});
+  refresh(); toast(`Mission ${num} on the field`);
+});
+
+/* ------- example: the OpenProof set-up ------- */
+function loadExample(){
+  S={units:{},place:{},missions:[],seq:1,mseq:1};
+  const put=(role,tool,slot)=>{const id=newUnit(role,tool);S.place[id]=slot};
+  put("owner","Person","hq:owner"); put("chief","Cowork","hq:chief"); put("coord","Claude Code","cp:coord"); put("watch","Scheduled task","tower:watch");
+  const ms=[["Resolve PR #2 conflicts","fix/deny-rules-edit-form","Keep every deny rule and all worktree logic; nothing loosened.","deny-rule test, check_hook"],
+            ["Declaration Card fixes","fix/drop54-r3","A declared line matches only when it is exactly what the package shows.","drop 54, drop 50, declaration tests"],
+            ["Hook timing limit","fix/d322-hook-timing","Correct hook decisions never show red on a slower Mac; runaway input is still stopped.","check_hook full run"],
+            ["Free branch guard","fix/free-branch-guard","Nothing reaches develop or release except through a merged pull request.","pre-push, deny-rule and workflow tests"]];
+  ms.forEach(([t,b,i,ts],k)=>{const num=String(S.mseq++).padStart(3,"0");S.missions.push({id:"m"+num,num,title:t,branch:b,words:"do anything and source any solution that is right",intent:i,tests:ts,stop:"Upload, open a pull request, write the evaluator brief. Don't merge."});
+    put("builder","Claude Code",`m${num}:builder`); put("evaluator","Codex",`m${num}:evaluator`); if(k<2) put("challenger","Claude Code",`m${num}:challenger`);});
+  refresh(); toast("OpenProof example loaded");
+}
+
+/* ------- deploy: write the files the agents work from ------- */
+let FILES=[];
+function deploy(){
+  const bad=renderReady();
+  const at=(k)=>Object.keys(S.place).filter(u=>S.place[u]===k).map(u=>S.units[u]);
+  const who=(k)=>at(k).map(u=>u.tool).join(", ")||"(not assigned)";
+  FILES=[];
+  FILES.push(["ROLES.md",`# Roles (one agent per job)\n\n| Role | Who | Does | Never does |\n|---|---|---|---|\n`+
+    [["owner","hq:owner"],["chief","hq:chief"],["coord","cp:coord"],["watch","tower:watch"]].map(([r,k])=>`| ${ROLES[r].name} | ${who(k)} | ${ROLES[r].does} | ${ROLES[r].never} |`).join("\n")+"\n"+
+    S.missions.map(m=>MSLOTS.map(([r])=>at(`${m.id}:${r}`).length?`| ${ROLES[r].name} (${m.num}) | ${who(`${m.id}:${r}`)} | ${ROLES[r].does} | ${ROLES[r].never} |`:"").filter(Boolean).join("\n")).filter(Boolean).join("\n")+"\n"]);
+  FILES.push(["inbox/README.md",`# Instruction inbox\n\nThe coordinator (exactly one session):\n1. Reads inbox/ in number order, except this README, following each file's order notes.\n2. Uses one worktree or branch per instruction, never the main folder and never a protected branch.\n3. Has the named builder do it: failing tests first, then the change, the named tests, upload, a pull request, an evaluator brief. Never merges.\n4. Sends the pull request to the named evaluator (and challenger, where named) and records their verdicts.\n5. Moves the instruction to done/ only after its pull request is merged (check the remote), and writes outbox/NNN_report.md.\n6. Rewrites outbox/STATUS.md after every step, checked against the remote.\n7. When blocked: writes the block into STATUS.md and stops. Never routes around a guard.\n`]);
+  S.missions.forEach(m=>{
+    const slug=m.title.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"").slice(0,40);
+    FILES.push([`inbox/${m.num}_${slug}.md`,`# ${m.num}: ${m.title}\n\nOwner's words: "${m.words}"\nBranch: \`${m.branch}\`, in its own worktree\nIntent: ${m.intent}\nBuilder: ${who(m.id+":builder")} · Evaluator: ${who(m.id+":evaluator")} · Challenger: ${who(m.id+":challenger")}\n\n## Steps\n1. Failing tests first.\n2. The change. Nothing is loosened.\n3. Tests to run: ${m.tests}.\n\n## Stop point\n${m.stop} Report in docs/ops/outbox/.\n`]);
+  });
+  FILES.push(["COORDINATOR_PROMPT.txt",`You are the coordinator. Follow docs/ops/inbox/README.md. Do every instruction in docs/ops/inbox/ in number order. Update docs/ops/outbox/STATUS.md after each one. Never merge.\n`]);
+  $("#filetabs").innerHTML=FILES.map((f,i)=>`<button aria-pressed="${i===0}" data-f="${i}">${f[0]}</button>`).join("");
+  $$("#filetabs button").forEach(b=>b.onclick=()=>{$$("#filetabs button").forEach(x=>x.setAttribute("aria-pressed","false"));b.setAttribute("aria-pressed","true");$("#filebody").textContent=FILES[+b.dataset.f][1]});
+  $("#filebody").textContent=FILES[0][1]; $("#out").classList.add("open");
+  toast(bad?`Orders written, but ${bad} blocking issue${bad>1?"s":""} remain`:"Orders written: ready to deploy");
+  $("#out").scrollIntoView({behavior:matchMedia("(prefers-reduced-motion: reduce)").matches?"auto":"smooth",block:"nearest"});
+}
+$("#btn-copy").onclick=()=>{const t=$("#filebody").textContent;navigator.clipboard?.writeText(t).then(()=>toast("Copied"),()=>{const r=document.createRange();r.selectNodeContents($("#filebody"));getSelection().removeAllRanges();getSelection().addRange(r);toast("Selected: press copy")})};
+$("#btn-deploy").onclick=deploy;
+$("#btn-load").onclick=loadExample;
+$("#btn-clear").onclick=()=>{S={units:{},place:{},missions:[],seq:1,mseq:1};$("#out").classList.remove("open");refresh();toast("Field cleared")};
+
+
+/* ------- local mode: served by agent_company.py ui on 127.0.0.1 ------- */
+const TOKEN=new URLSearchParams(location.search).get("token");
+const LOCAL=!!TOKEN && /^(127\.0\.0\.1|localhost)$/.test(location.hostname);
+async function api(path,body){const r=await fetch(path+(path.includes("?")?"&":"?")+"token="+encodeURIComponent(TOKEN),body?{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)}:{});if(!r.ok)throw new Error(await r.text());return r.json()}
+if(LOCAL){
+  $("#btn-write").hidden=false;
+  api("/api/info").then(i=>{$("#localnote").hidden=false;$("#localnote").textContent=`Local mode: writes into ${i.ops}. Existing instruction files are never overwritten.`;$("#foot").textContent=`Local mode, repository: ${i.repo}. Owner-only actions stay with you: merging, releasing and decisions.`}).catch(()=>{});
+  api("/api/plan").then(p=>{if(p&&p.units){S=p;refresh();toast("Loaded the plan saved in your repo")}}).catch(()=>{});
+  $("#btn-write").onclick=async()=>{
+    if(!FILES.length) deploy();
+    try{const r=await api("/api/deploy",{files:FILES,plan:S});toast(`Wrote ${r.written.length} file${r.written.length===1?"":"s"}${r.kept.length?`, kept ${r.kept.length} existing`:""}`);$("#localnote").textContent=`Written: ${r.written.join(", ")||"none"}. Kept unchanged: ${r.kept.join(", ")||"none"}.`}
+    catch(e){toast("Could not write: "+e.message)}
+  };
+}
+
+renderRoster();
+try{const s=JSON.parse(localStorage.getItem("agent-company")||"null");if(s&&s.units){S=s;refresh()}else loadExample()}catch(e){loadExample()}
+</script>
