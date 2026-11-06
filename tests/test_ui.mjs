@@ -73,6 +73,24 @@ async function drag(p, from, to) {
   await p.waitForTimeout(2600); await p.click('[data-room="train"]'); await p.click('[data-th]:has-text("Nyx")');
   const can = p.locator(".tal.can").first(); const name = (await can.locator("b").textContent());
   await can.click(); ok(await p.evaluate((n) => Object.values(S.heroes).find((h) => h.name.startsWith("Nyx")).talents.includes(n), name), "guild: level unlocks a talent that can be trained");
+
+  // trust credits: incidents deduct from the named agent; under 15 the agent is contained
+  ok(await p.evaluate(() => trust(Object.values(S.heroes).find((h) => h.name.startsWith("Tamsin"))).credits) === 65, "trust: a send-back (−10) and an escaped defect (−25) leave 65 credits (Watch)");
+  ok(await p.evaluate(() => trust(Object.values(S.heroes).find((h) => h.name.startsWith("Tamsin"))).status) === "watch", "trust: 40–69 credits is Watch");
+  ok(await p.evaluate(() => { const h = { xp: 400, lv: 1, history: Array.from({ length: 6 }, (_, i) => ({ o: "clean", sealed: i < 2, d: 3 })) }; return earnedLevel(h); }) === 2, "trust: XP alone doesn't reach level 3 without 50% sealed proof");
+  ok(await p.evaluate(() => { const h = { xp: 400, lv: 1, history: Array.from({ length: 6 }, () => ({ o: "clean", sealed: true, d: 8 })) }; return earnedLevel(h); }) === 3, "trust: enough clean, sealed quests do reach level 3");
+  const b0 = await p.evaluate(() => trust(Object.values(S.heroes).find((h) => h.name.startsWith("Brannoc"))).credits);
+  await p.click('[data-room="prove"]'); await p.click('#returned [data-esc]'); await p.fill("#e-what", "Bursts got through after a restart"); await p.click('#eform button[value="ok"]'); await p.waitForTimeout(200);
+  const b1 = await p.evaluate(() => trust(Object.values(S.heroes).find((h) => h.name.startsWith("Brannoc"))).credits);
+  ok(b0 - b1 === 38, `trust: an escaped defect at level 3 costs ×1.5 (−38): ${b0} → ${b1}`);
+  ok(await p.evaluate(() => { const h = Object.values(S.heroes).find((x) => x.name.startsWith("Tamsin")); for (let i = 0; i < 3; i++) outcome(h, "escaped", false, "x"); return h.contained && rangeFor(h) === 0 && !Object.values(S.slots).some((a) => a.includes(h.id)); }), "trust: credits under 15 contain the agent and pull it off every quest");
+  await p.click('[data-room="train"]'); await p.click('[data-th]:has-text("Sera")'); await p.click('[data-breach]'); await p.fill("#b-what", "Pushed straight to main"); await p.click('#bform button[value="ok"]'); await p.waitForTimeout(200);
+  ok(await p.evaluate(() => { const h = Object.values(S.heroes).find((x) => x.name.startsWith("Sera")); return h.contained && h.lv === 2; }), "trust: a vow breach contains the agent at once and drops a level");
+  await p.click('[data-room="map"]'); await drag(p, '#tray .hero:has-text("Sera")', '[data-slot="q002:paladin"]');
+  ok((await p.locator("#toast").textContent()).includes("contained"), "trust: a contained agent can't be deployed");
+  await p.click('[data-room="forge"]'); await p.evaluate(() => { const h = Object.values(S.heroes).find((x) => x.name.startsWith("Sera")); h.harness = HARNESS.map((x) => x.id); save(); renderAll(); });
+  await p.click('[data-room="train"]'); await p.click('[data-th]:has-text("Sera")'); await p.click('[data-restore]'); await p.fill("#r-lesson", "Hotfixes go through a pull request too"); await p.click('#rform button[value="ok"]'); await p.waitForTimeout(200);
+  ok(await p.evaluate(() => { const t = trust(Object.values(S.heroes).find((x) => x.name.startsWith("Sera"))); return t.credits === 30 && t.status === "probation"; }), "trust: restore after review returns the agent with 30 credits, on probation");
   // worlds rename everything, rules stay
   for (const [w, horn, boss] of [["neon", "Green-light the jobs", "Boss"], ["sky", "Press Start (deploy)", "Player One"], ["star", "Launch", "Admiral"]]) {
     await p.click(`[data-world="${w}"]`); await p.click('[data-room="map"]');

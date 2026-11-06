@@ -1,0 +1,107 @@
+1
+00:00:00,500 --> 00:00:02,338
+One person. Twelve AI agents.
+
+2
+00:00:02,338 --> 00:00:08,959
+By Friday, two of them share a branch, nobody has reviewed anything, and everything says done.
+
+3
+00:00:09,200 --> 00:00:13,414
+Done, with no pull request, no test run, and no second pair of eyes.
+
+4
+00:00:13,414 --> 00:00:16,059
+That isn't done. That's unknown.
+
+5
+00:00:16,300 --> 00:00:18,927
+Agent Company fixes the team, not the model.
+
+6
+00:00:18,927 --> 00:00:25,975
+You stay the owner. Each agent gets one job, written orders, an independent reviewer and an evidence trail.
+
+7
+00:00:26,200 --> 00:00:30,332
+You learn it by playing. In Guild mode, you forge a character.
+
+8
+00:00:30,332 --> 00:00:33,398
+Its class is its job. Its origin is its tool:
+
+9
+00:00:33,398 --> 00:00:36,131
+Claude Code, Codex, Gemini CLI.
+
+10
+00:00:36,367 --> 00:00:38,742
+Then you fit the OpenProof harness:
+
+11
+00:00:38,742 --> 00:00:40,845
+six pieces, each a real limit.
+
+12
+00:00:40,845 --> 00:00:43,288
+Own worktree. Deny rules. No merge.
+
+13
+00:00:43,288 --> 00:00:45,935
+Tool allowlist. Constructed data only.
+
+14
+00:00:45,935 --> 00:00:47,621
+Evidence trail.
+
+15
+00:00:47,867 --> 00:00:49,500
+Drag your team onto the map.
+
+16
+00:00:49,500 --> 00:00:51,367
+A builder in a reviewer's slot?
+
+17
+00:00:51,367 --> 00:00:56,518
+Refused. When the ring turns green, deploy writes real orders into your repo.
+
+18
+00:00:56,767 --> 00:00:59,303
+The rule that matters: no proof, no XP.
+
+19
+00:00:59,303 --> 00:01:02,621
+A pull request, the tests, an independent verdict.
+
+20
+00:01:02,621 --> 00:01:05,353
+An OpenProof record seals it for full XP.
+
+21
+00:01:05,353 --> 00:01:07,189
+Without one, half.
+
+22
+00:01:07,433 --> 00:01:10,326
+Levels unlock talents and more quests at once.
+
+23
+00:01:10,326 --> 00:01:17,151
+Three vows never change: never merge, never a protected branch, never real data to a hosted model.
+
+24
+00:01:17,400 --> 00:01:22,499
+Play a fantasy realm, a neon city, sky islands or a star fleet, or build your own.
+
+25
+00:01:22,499 --> 00:01:25,027
+On a laptop, or on your phone.
+
+26
+00:01:25,267 --> 00:01:27,520
+Agent Company. Free and open source.
+
+27
+00:01:27,520 --> 00:01:30,249
+Run your agents like a good team.

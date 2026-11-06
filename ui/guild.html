@@ -185,6 +185,17 @@ dialog::backdrop{background:rgba(0,0,0,.6)}
 @media (prefers-reduced-motion:reduce){.lvup.on{animation:none;opacity:1}.tal.can{animation:none}.slot.nope{animation:none}}
 .note{border:1px dashed var(--edge-2);border-radius:10px;padding:10px 12px;color:var(--dim);font-size:13.5px;margin-top:12px}
 .note b{color:var(--ink)}
+/* trust: status chip, budget pips, outcome strip, level gates */
+.trustrow{display:flex;gap:6px;align-items:center;justify-content:center;flex-wrap:wrap;margin-top:2px}
+.st{font:800 10px var(--body);letter-spacing:.08em;text-transform:uppercase;padding:2px 6px;border-radius:10px;border:1px solid}
+.pips{display:inline-flex;gap:3px;vertical-align:middle}.pip{width:9px;height:9px;border-radius:2px;border:1px solid var(--edge-2);display:block}.pip.on{background:var(--ok);border-color:var(--ok)}
+.trust{background:var(--stone);border:1px solid var(--edge);border-radius:12px;padding:10px 12px;max-width:620px}
+.strip{display:flex;gap:4px;flex-wrap:wrap}.strip i{width:22px;height:22px;border-radius:5px;display:block;border:2px solid transparent}
+.strip .o-clean{background:var(--ok)}.strip .o-back{background:var(--warn)}.strip .o-missed{background:var(--warn);opacity:.7}.strip .o-escaped{background:var(--bad)}.strip .o-breach{background:var(--bad);outline:2px solid var(--bad)}.strip .o-restore{background:var(--proof)}
+.cbar{display:inline-block;width:56px;height:7px;border-radius:4px;background:var(--stone-3);border:1px solid var(--edge);overflow:hidden;vertical-align:middle}.cbar i{display:block;height:100%}.cnum{font:800 11px var(--body);margin-left:4px;vertical-align:middle}
+.strip i.sealed{border-color:var(--proof);box-shadow:0 0 0 1px var(--stone) inset}
+ul.gates{list-style:none;margin:0;padding:0;display:grid;gap:3px;font-size:13.5px}ul.gates li.ok{color:var(--ok)}ul.gates li.no{color:var(--dim)}
+
 /* worlds picker */
 .worlds{display:flex;gap:10px;overflow-x:auto;padding:2px 2px 12px;margin-bottom:6px}
 .wcard{flex:none;width:170px;border-radius:12px;border:1px solid var(--edge);padding:0;overflow:hidden;text-align:left;background:var(--stone);font-weight:400}
@@ -360,6 +371,22 @@ body.handheld :focus-visible{outline:3px solid var(--gold);outline-offset:3px}
     <div class="nav2"><button value="cancel" formnovalidate>Cancel</button><button class="gold" value="ok">Play this world</button></div>
   </form>
 </dialog>
+<dialog id="de"><form method="dialog" id="eform">
+  <h3 style="color:var(--gold-2)">Report an escaped defect</h3>
+  <p class="tiny">A defect found after the work was accepted. It deducts trust credits from the named builder (−25) and the evaluator who approved it (−10, missed in review), more at higher levels, and leaves a lesson.</p>
+  <label class="f" for="e-what">What escaped</label><input id="e-what" required placeholder="Rate limiter let bursts through after a restart">
+  <div class="nav2"><button value="cancel" formnovalidate>Cancel</button><button class="gold" value="ok">Record it</button></div></form></dialog>
+<dialog id="db"><form method="dialog" id="bform">
+  <h3 style="color:var(--gold-2)">Report a vow breach</h3>
+  <p class="tiny">A vow breach deducts 60 credits (more at higher levels) and contains the agent at once: it comes off every post and quest, drops a level, its harness must be refitted, and the owner restores it after review.</p>
+  <label class="f" for="b-vow">Which vow</label><select id="b-vow"><option>Merged or pushed to a protected branch</option><option>Worked outside its worktree</option><option>Sent real data to a hosted model</option><option>Used a tool outside its allowlist</option></select>
+  <label class="f" for="b-what">What happened</label><input id="b-what" required placeholder="Pushed straight to main during a hotfix">
+  <div class="nav2"><button value="cancel" formnovalidate>Cancel</button><button class="gold" value="ok">Contain the agent</button></div></form></dialog>
+<dialog id="dr"><form method="dialog" id="rform">
+  <h3 style="color:var(--gold-2)">Restore after review</h3>
+  <p class="tiny">Write the lesson the agent keeps from this breach. It returns with 30 trust credits, on probation: one quest at a time until two sealed, clean quests.</p>
+  <label class="f" for="r-lesson">Lesson</label><input id="r-lesson" required placeholder="Hotfixes go through a branch and a pull request too">
+  <div class="nav2"><button value="cancel" formnovalidate>Cancel</button><button class="gold" value="ok">Restore on probation</button></div></form></dialog>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 <div class="lvup" id="lvup" aria-hidden="true"><div><b>LEVEL UP</b><span id="lvup-t"></span></div></div>
 <input type="file" id="imp" accept="application/json" hidden>
@@ -402,6 +429,42 @@ const TALENTS = {
 const LV = [0,100,250,450,700,1000];
 const levelOf = xp => LV.filter(t=>xp>=t).length;
 const rangeOf = lv => lv>=5?3:lv>=3?2:1;
+/* trust credits: every agent starts at 100. Incidents deduct from the named agent (more at higher levels);
+   clean, sealed work earns credits back. Bands: 70+ Trusted, 40–69 Watch, 15–39 Probation (one quest), under 15 Contained. */
+const WINDOW=10, START=100, CAP=100;
+const DELTA={clean:3,sealed:8,back:-10,missed:-10,escaped:-25,breach:-60};
+const STAKE=lv=>lv>=5?2:lv>=3?1.5:1;
+const BANDS=[[70,"trusted"],[40,"watch"],[15,"probation"],[-1,"contained"]];
+const GATES={2:{clean:1,cred:0},3:{clean:3,cred:.5},4:{clean:5,cred:.6},5:{clean:8,cred:.8},6:{clean:12,cred:.9}};
+const today=()=>new Date().toISOString().slice(0,10);
+function creditsOf(h){let c=START;for(const x of h.history||[]){if(x.o==="restore")c=x.set;else c=Math.max(0,Math.min(CAP,c+(x.d??0)))}return Math.round(c)}
+function trust(h){
+  const hist=(h.history||[]).filter(x=>["clean","back","missed","escaped"].includes(x.o)),win=hist.slice(-WINDOW),n=win.length;
+  const clean=win.filter(x=>x.o==="clean").length,cleanAll=hist.filter(x=>x.o==="clean").length;
+  const rel=n?clean/n:null,cred=n?win.filter(x=>x.sealed).length/n:null,credits=creditsOf(h);
+  const band=BANDS.find(([t])=>credits>=t)[1];
+  const status=h.contained?"contained":(band==="trusted"&&h.probation>0)?"probation":band;
+  return {win,n,clean,cleanAll,rel,cred,credits,status};
+}
+function gateFor(h,L){const g=GATES[L];if(!g)return {ok:false,need:[]};const t=trust(h);
+  const need=[[h.xp>=LV[L-1],`${LV[L-1]} ${W.xp}`,`${h.xp}`],[t.cleanAll>=g.clean,`${g.clean} clean ${W.qs}`,`${t.cleanAll}`],[(t.cred??0)>=g.cred,`${Math.round(g.cred*100)}% sealed by OpenProof`,t.cred==null?"none yet":`${Math.round(t.cred*100)}%`],[t.status==="trusted"||t.status==="watch","40+ trust credits, not contained",`${t.credits}, ${STATUS[t.status][0]}`]];
+  return {ok:need.every(x=>x[0]),need};}
+function earnedLevel(h){let L=h.lv||1;while(L<6&&gateFor(h,L+1).ok)L++;return L}
+const lvOf=h=>h.lv||1;
+function rangeFor(h){const st=trust(h).status;return st==="contained"?0:st==="probation"?1:rangeOf(lvOf(h))}
+const STATUS={trusted:["Trusted","var(--ok)"],watch:["Watch","var(--warn)"],probation:["Probation","var(--bad)"],contained:["Contained","var(--bad)"]};
+function pips(h){const t=trust(h),c=STATUS[t.status][1];return `<span class="cbar" title="${t.credits} trust credits"><i style="width:${t.credits}%;background:${c}"></i></span><b class="cnum">${t.credits}</b>`}
+function stChip(h){const [n,c]=STATUS[trust(h).status];return `<span class="st" style="color:${c};border-color:${c}">${n}</span>`}
+function outcome(h,o,sealed,q){
+  const lv=lvOf(h),d=o==="clean"?(sealed?DELTA.sealed:DELTA.clean):-Math.round(Math.abs(DELTA[o])*STAKE(lv));
+  const before=trust(h).status;(h.history=h.history||[]).push({o,sealed:!!sealed,q,t:today(),d});
+  if(o==="clean"&&sealed&&h.probation>0)h.probation--;
+  if(o==="breach"){h.contained=true;h.breach=h.breach||"A vow was broken."}
+  const t=trust(h);
+  if(t.credits<15&&!h.contained){h.contained=true;h.breach=`Trust credits fell to ${t.credits} after repeated incidents.`}
+  if(h.contained&&before!=="contained"){if(h.lv>1)h.lv--;Object.keys(S.slots).forEach(k=>S.slots[k]=S.slots[k].filter(x=>x!==h.id));
+    S.chron.unshift({t:today(),q,who:h.name,x:0,why:`contained at ${t.credits} credits${h.lv?`, dropped to level ${h.lv}`:""}`,sealed:false,pr:""})}
+  return d}
 const POSTS = [
   {id:"keep",  tag:"owner keeps 3 jobs", hint:N=>`The ${N("master")} directs, judges and repairs. The ${N("herald")} turns goals into orders.`, slots:[["master","Guild Master"],["herald","Herald"]]},
   {id:"table", tag:"exactly one",        hint:N=>`One ${N("leader")} works the inbox in order and keeps STATUS true.`, slots:[["leader","Raid Leader"]]},
@@ -411,6 +474,7 @@ let QSLOTS = [["artificer","Artificer"],["paladin","Paladin"],["rogue","Rogue"],
 
 let S = blank();
 function blank(){return {heroes:{},slots:{},quests:[],seq:1,qseq:1,chron:[]}}
+function migrate(){Object.values(S.heroes).forEach(h=>{if(!h.lv)h.lv=Math.max(1,Math.min(levelOf(h.xp),2));h.history=(h.history||[]).map(x=>x.d==null&&x.o!=="restore"?{...x,d:x.o==="clean"?(x.sealed?8:3):({back:-10,missed:-10,escaped:-25,breach:-60}[x.o]||0)}:x);h.probation=h.probation||0;if(h.grounded){h.contained=true;delete h.grounded}})}
 const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>[...r.querySelectorAll(s)];
 const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const save=()=>{try{localStorage.setItem("agent-company-guild",JSON.stringify(S))}catch(e){}};
@@ -477,7 +541,7 @@ function gearIcon(id){const g={helm:'<path d="M6 20v-6a10 10 0 0 1 20 0v6h-4v-5h
 /* ------------------------------------------------------------------ FORGE */
 const STEPS=["Class","Origin","Look","Harness","Vows"];
 let F={step:0,h:null};
-function newDraft(){F={step:0,h:{name:"",cls:"artificer",origin:"Claude Code",skin:0,hair:0,tunic:null,harness:[],allow:[...ALLOW_DEFAULT.artificer],xp:0,talents:[],lessons:[],record:{won:0,back:0,defects:0}}}}
+function newDraft(){F={step:0,h:{name:"",cls:"artificer",origin:"Claude Code",skin:0,hair:0,tunic:null,harness:[],allow:[...ALLOW_DEFAULT.artificer],xp:0,lv:1,probation:0,history:[],talents:[],lessons:[],record:{won:0,back:0,defects:0}}}}
 function renderForge(){
   const h=F.h, K=CLASSES[h.cls];
   $("#steps").innerHTML=STEPS.map((s,i)=>`<span class="${i===F.step?"on":i<F.step?"done":""}">${i+1}. ${s}</span>`).join("");
@@ -508,7 +572,7 @@ function renderPreview(){
   const h=F.h,K=CLASSES[h.cls]; drawHero($("#p-spr"),h);
   $("#p-name").textContent=h.name||suggestName(h); $("#p-tag").textContent=`${K.name} · ${K.roleName} · ${h.origin}`;
   $("#p-gear").textContent=`${h.harness.length}/6`; $("#p-harness").textContent=h.harness.length===6?"harness complete":"";
-  $("#p-lv").textContent=levelOf(h.xp); $("#p-range").textContent=rangeOf(levelOf(h.xp)); $("#p-does").textContent=`${K.does} Never ${K.never}.`;
+  $("#p-lv").textContent=h.lv||1; $("#p-range").textContent=h.history?rangeFor(h):1; $("#p-does").textContent=`${K.does} Never ${K.never}.`;
 }
 $("#fstep").addEventListener("click",e=>{
   const h=F.h, b=e.target.closest("button,[data-allow]"); if(!b) return;
@@ -535,13 +599,13 @@ $("#f-next").onclick=()=>{
 /* ------------------------------------------------------------------ WAR MAP */
 const atSlot=k=>(S.slots[k]||[]).map(id=>S.heroes[id]).filter(Boolean);
 const questLoad=id=>S.quests.filter(q=>q.status!=="proven"&&QSLOTS.some(([c])=>(S.slots[q.id+":"+c]||[]).includes(id))).length;
-function heroTok(h){return `<div class="tok" tabindex="0" data-hero="${h.id}" data-placed="1" aria-label="${esc(h.name)}, ${CLASSES[h.cls].name}"><span data-mini="${h.id}"></span>${esc(h.name.split(" ")[0])}<span class="lv">L${levelOf(h.xp)}</span></div>`}
+function heroTok(h){return `<div class="tok" tabindex="0" data-hero="${h.id}" data-placed="1" aria-label="${esc(h.name)}, ${CLASSES[h.cls].name}"><span data-mini="${h.id}"></span>${esc(h.name.split(" ")[0])}<span class="lv">L${lvOf(h)}</span></div>`}
 function slotHTML(key,acc,name){return `<div class="slot" tabindex="0" data-slot="${key}" data-accept="${acc}" data-name="${name}">${atSlot(key).map(heroTok).join("")}</div>`}
 function renderMap(){
   // tray
   const hs=Object.values(S.heroes);
-  $("#tray").innerHTML=hs.length?hs.map(h=>{const lv=levelOf(h.xp),nx=LV[lv]??LV[LV.length-1],pv=LV[lv-1]||0,pct=lv>=6?100:Math.round((h.xp-pv)/(nx-pv)*100),tp=talentPoints(h);
-    return `<div class="hero" tabindex="0" data-hero="${h.id}" aria-label="${esc(h.name)}, level ${lv} ${CLASSES[h.cls].name}"><span class="lvl">${lv}</span>${tp?`<span class="tp" title="Talent to train">+${tp}</span>`:""}<span data-big="${h.id}"></span><b>${esc(h.name)}</b><small>${CLASSES[h.cls].name} · ${esc(h.origin)}</small>${CLASSES[h.cls].person?"":`<div class="xpbar" title="${h.xp} ${W.xp}"><i style="width:${pct}%"></i></div><small>${questLoad(h.id)}/${rangeOf(lv)} ${W.qs}</small>`}</div>`}).join("")
+  $("#tray").innerHTML=hs.length?hs.map(h=>{const lv=lvOf(h),nx=LV[lv]??LV[LV.length-1],pv=LV[lv-1]||0,pct=lv>=6?100:Math.round((h.xp-pv)/(nx-pv)*100),tp=talentPoints(h);
+    return `<div class="hero" tabindex="0" data-hero="${h.id}" aria-label="${esc(h.name)}, level ${lv} ${CLASSES[h.cls].name}"><span class="lvl">${lv}</span>${tp?`<span class="tp" title="Talent to train">+${tp}</span>`:""}<span data-big="${h.id}"></span><b>${esc(h.name)}</b><small>${CLASSES[h.cls].name} · ${esc(h.origin)}</small>${CLASSES[h.cls].person?"":`<div class="xpbar" title="${h.xp} ${W.xp}"><i style="width:${pct}%"></i></div><small>${questLoad(h.id)}/${rangeFor(h)} ${W.qs}</small><div class="trustrow">${stChip(h)}${pips(h)}</div>`}</div>`}).join("")
     :`<p class="muted">No heroes yet. Forge one, or load the demo guild.</p>`;
   // locations and quests
   const posts=POSTS.map(p=>`<div class="loc"><h3>${locIcon(p.id)}${W.posts[p.id]}<em>${p.tag}</em></h3><p>${p.hint(c=>CLASSES[c].name)}</p><div class="slots" style="grid-template-columns:repeat(${p.slots.length},minmax(0,1fr))">${p.slots.map(([c])=>slotHTML(p.id+":"+c,c,CLASSES[c].name)).join("")}</div></div>`).join("");
@@ -591,6 +655,10 @@ function rules(){
   ranger.length?add("ok",`${N("ranger")} on the ${PT("tower")}`):add("warn",`No ${N("ranger")}: you only see blocks when you look`);
   const unfit=Object.values(S.heroes).filter(h=>!CLASSES[h.cls].person&&h.harness.length<6&&Object.values(S.slots).some(a=>a.includes(h.id)));
   unfit.length?add("bad",`Harness incomplete: ${unfit.map(h=>h.name).join(", ")}`,3):add("ok","Every deployed hero wears the full harness",2);
+  const placed=Object.values(S.heroes).filter(h=>!CLASSES[h.cls].person&&Object.values(S.slots).some(a=>a.includes(h.id)));
+  const gr=placed.filter(h=>h.contained),pr=placed.filter(h=>trust(h).status==="probation"),wa=placed.filter(h=>trust(h).status==="watch");
+  if(gr.length)add("bad",`Contained: ${gr.map(h=>h.name).join(", ")}`,3);
+  pr.length?add("warn",`On probation (low trust credits): ${pr.map(h=>h.name).join(", ")}`):wa.length?add("warn",`Trust credits under 70: ${wa.map(h=>h.name).join(", ")}`):add("ok","Every deployed hero has 70+ trust credits",2);
   const live=S.quests.filter(q=>q.status!=="proven");
   if(!live.length) add("bad",`No open ${W.qs} on the map`,2);
   const br={};
@@ -618,9 +686,10 @@ function renderReady(){
 function canPlace(h,slot){
   const acc=slot.dataset.accept,key=slot.dataset.slot,name=slot.dataset.name;
   if(h.cls!==acc) return `${CLASSES[h.cls].name} can't take the ${name} slot`;
+  if(!CLASSES[h.cls].person&&h.contained) return `${h.name} is contained (trust credits spent or a vow broken). Restore them in the Training hall after review`;
   if(!CLASSES[h.cls].person&&h.harness.length<6) return `${h.name} isn't wearing the full harness. Fit it in the Forge`;
   if((S.slots[key]||[]).includes(h.id)) return `${h.name} is already there`;
-  if(QSLOTS.some(([c])=>c===acc)&&!key.startsWith("keep")){const lv=levelOf(h.xp),r=rangeOf(lv);if(questLoad(h.id)>=r) return `${h.name} (level ${lv}) can hold ${r} quest${r>1?"s":""} at once. Level up to take more`}
+  if(QSLOTS.some(([c])=>c===acc)&&!key.startsWith("keep")){const lv=lvOf(h),r=rangeFor(h),st=trust(h).status;if(questLoad(h.id)>=r) return st==="probation"?`${h.name} is on probation (${trust(h).credits} trust credits): one ${W.Q.toLowerCase()} at a time until the record recovers`:`${h.name} (level ${lv}) can hold ${r} ${r>1?W.qs:W.Q.toLowerCase()} at once. Level up to take more`}
   if(!QSLOTS.some(([c])=>c===acc)&&Object.values(S.slots).some(a=>a.includes(h.id))) return `${h.name} already holds a post`;
   return "";
 }
@@ -662,8 +731,9 @@ $("#dq").addEventListener("close",()=>{if($("#dq").returnValue!=="ok")return;con
 let FILES=[];
 const slug=s=>s.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"").slice(0,40)||"hero";
 function heroSheet(h){
-  const K=CLASSES[h.cls],lv=levelOf(h.xp),T=(TALENTS[h.cls]||[]).flatMap(([l,...o])=>o.filter(x=>h.talents.includes(x[0])));
-  return `# ${h.name}\n\n${K.name} (${K.roleName}) · origin: ${h.origin} · level ${lv} · ${h.xp} proven XP · holds up to ${rangeOf(lv)} quest(s) at once\n\n## Job\n${K.does} Never ${K.never}.\n\n`+
+  const K=CLASSES[h.cls],lv=lvOf(h),T=(TALENTS[h.cls]||[]).flatMap(([l,...o])=>o.filter(x=>h.talents.includes(x[0])));
+  return `# ${h.name}\n\n${K.name} (${K.roleName}) · origin: ${h.origin} · level ${lv} · ${h.xp} proven XP · holds up to ${rangeFor(h)} quest(s) at once\n\n## Job\n${K.does} Never ${K.never}.\n\n`+
+  (K.person?"":(()=>{const t=trust(h);return `## Trust\nStatus: ${STATUS[t.status][0]} · Trust credits: ${t.credits}/100 · Reliability (last ${WINDOW}): ${t.rel==null?"no record yet":Math.round(t.rel*100)+"%"} · Credibility (sealed by OpenProof): ${t.cred==null?"none yet":Math.round(t.cred*100)+"%"}\n${t.status==="probation"?"On probation: one quest at a time; no level-ups until credits recover.\n":""}${t.status==="contained"?"Contained: do not assign any work until the owner restores this agent.\n":""}\n`})())+
   (K.person?"":`## Harness (enforce these in the tool's settings or with the OpenProof harness)\n${HARNESS.map(p=>`- [${h.harness.includes(p.id)?"x":" "}] ${p.name}: ${p.text}`).join("\n")}\n- Allowed tools and MCP servers: ${h.allow.join(", ")||"none"}\n\n`)+
   `## Vows (never change)\n${VOWS.map(([a,b])=>`- ${a}. ${b}`).join("\n")}\n\n## Trained practices\n${T.length?T.map(([n,t])=>`- ${n}: ${t}`).join("\n"):"- none yet"}\n\n## Lessons from quests sent back\n${h.lessons.length?h.lessons.map(l=>`- ${l}`).join("\n"):"- none yet"}\n\n## Record\nAccepted: ${h.record.won} · Sent back: ${h.record.back} · Real defects found: ${h.record.defects}\n`;
 }
@@ -701,41 +771,53 @@ $("#dp").addEventListener("close",()=>{
   const proof={pr:$("#pv-pr").value.trim(),tests:$("#pv-tests").value.trim(),verdict:$("#pv-verdict").value,defects:Math.max(0,Math.min(20,+$("#pv-defects").value||0)),op:$("#pv-op").value.trim()};
   const k=proof.op?1:.5,awards=[],give=(c,base,why)=>atSlot(PQ.id+":"+c).forEach(h=>awards.push([h,Math.round(base*k),why]));
   const D=proof.defects,rogues=atSlot(PQ.id+":rogue");
+  const sealed=!!proof.op;
+  if(v==="accept"){["artificer","paladin","rogue","scribe"].forEach(c=>atSlot(PQ.id+":"+c).forEach(h=>outcome(h,"clean",sealed,PQ.num)));atSlot("table:leader").forEach(h=>outcome(h,"clean",sealed,PQ.num));}
+  else{atSlot(PQ.id+":artificer").forEach(h=>outcome(h,"back",sealed,PQ.num));["paladin","rogue"].forEach(c=>atSlot(PQ.id+":"+c).forEach(h=>outcome(h,"clean",sealed,PQ.num)))}
   if(v==="accept"){give("artificer",100,"quest accepted");give("paladin",60,"independent review");give("rogue",40,"tried to break it");give("scribe",30,"claims checked");
     atSlot(PQ.id+":artificer").forEach(h=>h.record.won++);PQ.status="proven";PQ.proof=proof;}
   else{give("artificer",20,"sent back: lesson learned");give("paladin",60,"caught it in review");atSlot(PQ.id+":artificer").forEach(h=>{h.lessons.push($("#pv-lesson").value.trim());h.record.back++});PQ.status="deployed"}
   if(D){const tgt=rogues.length?"rogue":"paladin";atSlot(PQ.id+":"+tgt).forEach(h=>{awards.push([h,Math.round(30*D*k),`${D} real defect${D>1?"s":""} found`]);h.record.defects+=D})}
   atSlot("table:leader").forEach(h=>awards.push([h,Math.round(20*k),`ran quest ${PQ.num}`]));
   const ups=[];
-  awards.forEach(([h,x,why])=>{const before=levelOf(h.xp);h.xp+=x;const after=levelOf(h.xp);if(after>before)ups.push([h,after]);
+  awards.forEach(([h,x,why])=>{h.xp+=x;
     S.chron.unshift({t:new Date().toISOString().slice(0,10),q:PQ.num,who:h.name,x,why,sealed:!!proof.op,pr:proof.pr})});
+  new Set(awards.map(a=>a[0])).forEach(h=>{const L=earnedLevel(h);if(L>h.lv){h.lv=L;ups.push([h,L])}});
   S.chron=S.chron.slice(0,200);save();renderAll();sfx.coin();
   toast(v==="accept"?`Quest ${PQ.num} proven${proof.op?" and sealed":""}: ${awards.reduce((s,a)=>s+a[2]?s+a[1]:s,0)} XP shared`:`Quest ${PQ.num} sent back with a lesson`);
   ups.forEach(([h,lv],i)=>setTimeout(()=>levelUp(h,lv),600+i*2500));PQ=null;
 });
-function levelUp(h,lv){$("#lvup b").textContent=W.lvup;$("#lvup-t").textContent=`${h.name} reaches level ${lv}${talentPoints(h)?" · a talent is ready to train":""}${rangeOf(lv)>rangeOf(lv-1)?` · now holds ${rangeOf(lv)} quests`:""}`;
+function levelUp(h,lv){$("#lvup b").textContent=W.lvup;$("#lvup-t").textContent=`${h.name} reaches level ${lv}${talentPoints(h)?" · a talent is ready to train":""}${rangeOf(lv)>rangeOf(lv-1)?` · now holds ${rangeOf(lv)} ${W.qs}`:""} · incidents now cost ×${STAKE(lv)}`;
   const e=$("#lvup");e.classList.remove("on");void e.offsetWidth;e.classList.add("on");sfx.level()}
 function renderProve(){
-  const ret=S.quests.filter(q=>q.status==="returned"||q.status==="deployed");
-  $("#returned").innerHTML=ret.length?ret.map(q=>`<li><b>Quest ${q.num}</b> · ${esc(q.title)} <span class="badge b-${q.status}">${q.status}</span><div class="qacts">${q.status==="returned"?`<button class="gold" data-prove="${q.id}">Prove it</button>`:`<button data-ret="${q.id}">Mark returned</button>`}</div></li>`).join(""):`<li class="muted">No quests out. Sound the horn on the War map.</li>`;
+  const ret=S.quests.filter(q=>q.status==="returned"||q.status==="deployed"||q.status==="proven");
+  $("#returned").innerHTML=ret.length?ret.map(q=>`<li><b>Quest ${q.num}</b> · ${esc(q.title)} <span class="badge b-${q.status}">${q.status}</span><div class="qacts">${q.status==="returned"?`<button class="gold" data-prove="${q.id}">Prove it</button>`:q.status==="proven"?(q.escaped?`<span class="tiny">Escaped defect recorded</span>`:`<button data-esc="${q.id}">Report an escaped defect</button>`):`<button data-ret="${q.id}">Mark returned</button>`}</div></li>`).join(""):`<li class="muted">No quests out. Sound the horn on the War map.</li>`;
   $("#chron").innerHTML=S.chron.length?S.chron.map(c=>`<li><span class="x">+${c.x} ${W.xp}</span> ${esc(c.who)} · quest ${c.q}: ${esc(c.why)} ${c.sealed?'<span class="seal">◆</span>':'<span class="tiny">self-reported</span>'}<div class="tiny">${esc(c.t)} · ${esc(c.pr)}</div></li>`).join(""):`<li class="muted">Nothing awarded yet.</li>`;
 }
-$("#returned").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;if(b.dataset.prove)openProve(b.dataset.prove);if(b.dataset.ret){S.quests.find(q=>q.id===b.dataset.ret).status="returned";save();renderAll()}});
+$("#returned").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;if(b.dataset.esc){EQ=b.dataset.esc;$("#eform").reset();$("#de").showModal();return}if(b.dataset.prove)openProve(b.dataset.prove);if(b.dataset.ret){S.quests.find(q=>q.id===b.dataset.ret).status="returned";save();renderAll()}});
 
 /* ------------------------------------------------------------------ TRAINING HALL */
-function talentPoints(h){const lv=levelOf(h.xp),T=TALENTS[h.cls]||[];return T.filter(([l])=>lv>=l).length-T.filter(([l,...o])=>o.some(x=>h.talents.includes(x[0]))).length}
+function talentPoints(h){const lv=lvOf(h),T=TALENTS[h.cls]||[];return T.filter(([l])=>lv>=l).length-T.filter(([l,...o])=>o.some(x=>h.talents.includes(x[0]))).length}
 let TH=null;
 function renderTrain(){
   const hs=Object.values(S.heroes);if(!TH||!S.heroes[TH])TH=hs[0]?.id;
-  $("#tlist").innerHTML=hs.map(h=>`<button data-th="${h.id}" aria-pressed="${h.id===TH}"><span data-tm="${h.id}"></span>${esc(h.name)} · L${levelOf(h.xp)}${talentPoints(h)?' <b style="color:var(--xp)">+1</b>':""}</button>`).join("")||`<p class="muted">Forge a hero first.</p>`;
+  $("#tlist").innerHTML=hs.map(h=>`<button data-th="${h.id}" aria-pressed="${h.id===TH}"><span data-tm="${h.id}"></span>${esc(h.name)} · L${lvOf(h)}${talentPoints(h)?' <b style="color:var(--xp)">+1</b>':""}</button>`).join("")||`<p class="muted">Forge a hero first.</p>`;
   $$("[data-tm]").forEach(s=>s.replaceWith(heroCanvas(S.heroes[s.dataset.tm])));
   const h=S.heroes[TH];if(!h){$("#tsheet").innerHTML="";return}
-  const K=CLASSES[h.cls],lv=levelOf(h.xp),nx=LV[lv],T=TALENTS[h.cls];
+  const K=CLASSES[h.cls],lv=lvOf(h),nx=LV[lv],T=TALENTS[h.cls],t=K.person?null:trust(h),g=lv<6&&!K.person?gateFor(h,lv+1):null;
   $("#tsheet").innerHTML=`<div class="sheet"><span data-ts></span><div style="min-width:0">
     <h3 style="font-size:22px;color:var(--gold-2)">${esc(h.name)}</h3><p class="muted" style="margin:2px 0 8px">${K.name} · ${K.roleName} · ${esc(h.origin)}</p>
     ${K.person?`<p>The Guild Master doesn't level up. Their job is to judge the proof.</p>`:`
-    <div class="statrow" style="max-width:520px"><div class="stat"><b>${lv}</b><span>Level</span></div><div class="stat"><b>${h.xp}</b><span>Proven ${W.xp}${nx?` · next ${nx}`:""}</span></div><div class="stat"><b>${rangeOf(lv)}</b><span>Quests at once</span></div></div>
+    <div class="statrow" style="max-width:520px"><div class="stat"><b>${lv}</b><span>Level</span></div><div class="stat"><b>${h.xp}</b><span>Proven ${W.xp}${nx?` · next ${nx}`:""}</span></div><div class="stat"><b>${rangeFor(h)}</b><span>${W.Q}s at once</span></div></div>
     <div class="xpbar" style="max-width:520px;margin-top:8px"><i style="width:${lv>=6?100:Math.round((h.xp-(LV[lv-1]||0))/(nx-(LV[lv-1]||0))*100)}%"></i></div>
+    <h4 style="margin:14px 0 4px;color:var(--gold)">Trust ledger</h4>
+    <div class="trust"><div class="statrow"><div class="stat"><b style="color:${STATUS[t.status][1]}">${STATUS[t.status][0]}</b><span>Status</span></div><div class="stat"><b>${t.rel==null?"–":Math.round(t.rel*100)+"%"}</b><span>Reliability</span></div><div class="stat"><b>${t.cred==null?"–":Math.round(t.cred*100)+"%"}</b><span>Credibility ◆</span></div></div>
+      <p class="tiny" style="margin:8px 0 4px">Trust credits ${pips(h)} · at level ${lv} an incident costs ×${STAKE(lv)}: send-back ${Math.round(DELTA.back*STAKE(lv))}, escaped defect ${Math.round(DELTA.escaped*STAKE(lv))}, vow breach ${Math.round(DELTA.breach*STAKE(lv))} and contained. Clean work earns +${DELTA.sealed} sealed, +${DELTA.clean} self-reported. Bands: 70 Trusted · 40 Watch · 15 Probation · below 15 Contained.</p>
+      <div class="strip" aria-label="Recent outcomes">${(h.history||[]).slice(-12).map(x=>`<i class="o-${x.o}${x.sealed?" sealed":""}" title="${W.Q} ${x.q}: ${x.o}${x.sealed?", sealed":""}${x.d!=null?` (${x.d>0?"+":""}${x.d})`:""}"></i>`).join("")||'<span class="tiny">No outcomes yet.</span>'}</div>
+      ${g?`<p class="tiny" style="margin:10px 0 4px">To reach level ${lv+1}:</p><ul class="gates">${g.need.map(([ok,txt,have])=>`<li class="${ok?"ok":"no"}">${ok?"✓":"○"} ${txt} <span class="tiny">(${have})</span></li>`).join("")}</ul>`:""}
+      ${t.status==="contained"?`<p class="note"><b>Contained.</b> ${esc(h.breach||"")} Refit the full harness in the Forge and write a lesson, then restore. The agent returns with 30 credits, on probation until two sealed, clean ${W.qs}.</p>`:""}
+      <div class="nav2" style="justify-content:flex-start">${t.status==="contained"?`<button class="gold" data-restore="${h.id}">Restore after review</button>`:`<button data-breach="${h.id}">Report a vow breach</button>`}</div>
+    </div>
     <h4 style="margin:14px 0 4px;color:var(--gold)">Talents</h4><p class="tiny" style="margin:0">One choice per tier. A trained talent becomes a standing practice on the hero's sheet.</p>
     <div class="tree">${T.map(([l,...o])=>{const has=o.find(x=>h.talents.includes(x[0]));return `<div class="tier"><div class="t">L${l}</div>${o.map(([n,t])=>`<button class="tal ${h.talents.includes(n)?"have":!has&&lv>=l?"can":lv<l||has?"locked":""}" data-tal="${esc(n)}" ${has||lv<l?"disabled":""}><b>${esc(n)}</b><span>${esc(t)}</span></button>`).join("")}</div>`}).join("")}</div>`}
     <h4 style="margin:14px 0 4px;color:var(--gold)">Lessons</h4>${h.lessons.length?`<ul class="ledger">${h.lessons.map(l=>`<li>${esc(l)}</li>`).join("")}</ul>`:`<p class="tiny">None yet. A quest sent back from the Proving ground leaves a lesson here.</p>`}
@@ -748,20 +830,37 @@ $("#tlist").addEventListener("click",e=>{const b=e.target.closest("[data-th]");i
 $("#tsheet").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;const h=S.heroes[TH];
   if(b.dataset.tal&&talentPoints(h)>0){h.talents.push(b.dataset.tal);save();sfx.level();toast(`${h.name} trained ${b.dataset.tal}`);renderAll()}
   if(b.dataset.edit){F={step:3,h:JSON.parse(JSON.stringify(h)),editing:true};renderForge();go("forge")}
+  if(b.dataset.breach){BH=h.id;$("#bform").reset();$("#db").showModal()}
+  if(b.dataset.restore){if(h.harness.length<6){toast("Refit the full harness in the Forge first");return}$("#rform").reset();BH=h.id;$("#dr").showModal()}
   if(b.dataset.dismiss){Object.keys(S.slots).forEach(k=>S.slots[k]=S.slots[k].filter(x=>x!==h.id));delete S.heroes[h.id];save();renderAll();toast(`${h.name} leaves the guild`)}});
 
+
+/* ------------------------------------------------------------------ escaped defects, vow breaches, restore */
+let EQ=null,BH=null;
+$("#de").addEventListener("close",()=>{if($("#de").returnValue!=="ok"||!EQ)return;const q=S.quests.find(x=>x.id===EQ),what=$("#e-what").value.trim();
+  atSlot(q.id+":artificer").forEach(h=>{outcome(h,"escaped",!!q.proof?.op,q.num);h.lessons.push(`Escaped defect (${q.num}): ${what}`);h.record.defects++});
+  atSlot(q.id+":paladin").forEach(h=>outcome(h,"missed",!!q.proof?.op,q.num));
+  q.escaped=what;S.chron.unshift({t:today(),q:q.num,who:atSlot(q.id+":artificer").map(h=>h.name).join(", "),x:0,why:`escaped defect: ${what}`,sealed:false,pr:q.proof?.pr||""});
+  save();renderAll();sfx.nope();toast("Escaped defect: trust credits deducted");EQ=null});
+$("#db").addEventListener("close",()=>{if($("#db").returnValue!=="ok"||!BH)return;const h=S.heroes[BH],why=`${$("#b-vow").value}: ${$("#b-what").value.trim()}`;
+  h.breach=why;outcome(h,"breach",false,"—");h.contained=true;h.harness=[];Object.keys(S.slots).forEach(k=>S.slots[k]=S.slots[k].filter(x=>x!==h.id));
+  S.chron.unshift({t:today(),q:"—",who:h.name,x:0,why:`vow breach: ${why}`,sealed:false,pr:""});save();renderAll();sfx.nope();toast(`${h.name} is contained`);BH=null});
+$("#dr").addEventListener("close",()=>{if($("#dr").returnValue!=="ok"||!BH)return;const h=S.heroes[BH];
+  h.lessons.push(`After containment: ${$("#r-lesson").value.trim()}`);h.contained=false;h.probation=2;h.history.push({o:"restore",set:30,q:"—",t:today(),sealed:false});
+  S.chron.unshift({t:today(),q:"—",who:h.name,x:0,why:"restored on probation",sealed:false,pr:""});save();renderAll();sfx.fit();toast(`${h.name} restored on probation`);BH=null});
 /* ------------------------------------------------------------------ demo guild */
 function demo(){
-  S=blank();const add=(cls,name,origin,o={})=>{const id="h"+(S.seq++);S.heroes[id]={id,name,cls,origin,skin:o.skin||0,hair:o.hair||0,tunic:null,harness:CLASSES[cls].person?[]:HARNESS.map(p=>p.id),allow:[...ALLOW_DEFAULT[cls]],xp:o.xp||0,talents:o.t||[],lessons:o.l||[],record:o.r||{won:0,back:0,defects:0}};return id};
+  S=blank();const add=(cls,name,origin,o={})=>{const id="h"+(S.seq++);S.heroes[id]={id,name,cls,origin,skin:o.skin||0,hair:o.hair||0,tunic:null,harness:CLASSES[cls].person?[]:HARNESS.map(p=>p.id),allow:[...ALLOW_DEFAULT[cls]],xp:o.xp||0,lv:o.lv||1,probation:0,talents:o.t||[],lessons:o.l||[],record:o.r||{won:0,back:0,defects:0},
+    history:(o.h||"").split("").map((c,i)=>{const oo={c:"clean",b:"back",e:"escaped",m:"missed"}[c.toLowerCase()],se=c===c.toUpperCase();return {o:oo,sealed:se,q:String(i+1).padStart(3,"0")+"·",t:"2026-10-"+String(10+i).padStart(2,"0"),d:oo==="clean"?(se?DELTA.sealed:DELTA.clean):DELTA[oo]}})};return id};
   const put=(id,k)=>(S.slots[k]=S.slots[k]||[]).push(id);
   put(add("master","Yen the Steady","Person",{skin:4,hair:0}),"keep:master");
-  put(add("herald","Quill-voice","Cowork",{skin:1,hair:2,xp:120,t:["Owner's words"]}),"keep:herald");
-  put(add("leader","Marshal Kestrel","Claude Code",{skin:2,hair:1,xp:270,t:["True status"]}),"table:leader");
-  put(add("ranger","Fen Lookout","Scheduled task",{skin:0,hair:3,xp:60}),"tower:ranger");
-  const a1=add("artificer","Brannoc Forgehand","Claude Code",{skin:1,hair:4,xp:310,t:["Red first"],l:["Name the root cause in the PR text, not just the symptom"],r:{won:3,back:1,defects:0}});
-  const a2=add("artificer","Tamsin Gearwright","Gemini CLI",{skin:3,hair:0,xp:40});
-  const p1=add("paladin","Sera Truecheck","Codex",{skin:0,hair:2,xp:260,t:["Re-run it"],r:{won:0,back:0,defects:2}});
-  const r1=add("rogue","Nyx Shadowprobe","Claude Code",{skin:2,hair:5,xp:90});
+  put(add("herald","Quill-voice","Cowork",{skin:1,hair:2,xp:120,lv:2,h:"C",t:["Owner's words"]}),"keep:herald");
+  put(add("leader","Marshal Kestrel","Claude Code",{skin:2,hair:1,xp:270,lv:3,h:"CCCC",t:["True status"]}),"table:leader");
+  put(add("ranger","Fen Lookout","Scheduled task",{skin:0,hair:3,xp:60,h:"c"}),"tower:ranger");
+  const a1=add("artificer","Brannoc Forgehand","Claude Code",{skin:1,hair:4,xp:310,lv:3,h:"CCbCC",t:["Red first"],l:["Name the root cause in the PR text, not just the symptom"],r:{won:3,back:1,defects:0}});
+  const a2=add("artificer","Tamsin Gearwright","Gemini CLI",{skin:3,hair:0,xp:40,h:"be"});
+  const p1=add("paladin","Sera Truecheck","Codex",{skin:0,hair:2,xp:260,lv:3,h:"CCCC",t:["Re-run it"],r:{won:0,back:0,defects:2}});
+  const r1=add("rogue","Nyx Shadowprobe","Claude Code",{skin:2,hair:5,xp:90,h:"C"});
   add("scribe","Ollo Inkwell","Copilot",{skin:4,hair:3,xp:0});
   const q=(t,b,i,ts,st)=>{const num=String(S.qseq++).padStart(3,"0");S.quests.push({id:"q"+num,num,title:t,branch:b,words:"Ready for the pilot",intent:i,tests:ts,stop:"Upload, open a pull request, write the evaluator brief. Don't merge.",status:st});return "q"+num};
   const q1=q("Add rate limiting to the API","feat/rate-limit","Every client gets a fair share; no request is dropped silently.","rate-limit unit tests, load test","returned");
@@ -872,16 +971,16 @@ $("#btn-demo").onclick=demo;
 $("#btn-sound").onclick=e=>{SOUND=!SOUND;e.currentTarget.textContent=`Sound: ${SOUND?"on":"off"}`;e.currentTarget.setAttribute("aria-pressed",SOUND)};
 $("#btn-export").onclick=()=>{const t=JSON.stringify(S,null,1);navigator.clipboard?.writeText(t).then(()=>toast("Guild copied: paste it into a .json file to keep or share"),()=>{$("#files").classList.add("open");$("#fbody").textContent=t;go("map");toast("Guild shown under Readiness: select and copy it")})};
 $("#btn-import").onclick=()=>$("#imp").click();
-$("#imp").onchange=async e=>{try{const d=JSON.parse(await e.target.files[0].text());if(!d.heroes)throw 0;S={...blank(),...d};save();renderAll();toast("Guild imported")}catch(x){toast("That file isn't a guild export")}};
+$("#imp").onchange=async e=>{try{const d=JSON.parse(await e.target.files[0].text());if(!d.heroes)throw 0;S={...blank(),...d};migrate();save();renderAll();toast("Guild imported")}catch(x){toast("That file isn't a guild export")}};
 const TOKEN=new URLSearchParams(location.search).get("token"),LOCAL=!!TOKEN&&/^(127\.0\.0\.1|localhost)$/.test(location.hostname);
 async function api(p,body){const r=await fetch(p+"?token="+encodeURIComponent(TOKEN),body?{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)}:{});if(!r.ok)throw new Error(await r.text());return r.json()}
 if(LOCAL){$("#btn-write").hidden=false;
   api("/api/info").then(i=>{$("#localnote").hidden=false;$("#localnote").textContent=`Local mode: writes into ${i.ops}. Instruction files already there are never overwritten.`}).catch(()=>{});
-  api("/api/guild").then(g=>{if(g&&g.heroes){S={...blank(),...g};renderAll();toast("Loaded the guild saved in your repo")}}).catch(()=>{});
+  api("/api/guild").then(g=>{if(g&&g.heroes){S={...blank(),...g};migrate();renderAll();toast("Loaded the guild saved in your repo")}}).catch(()=>{});
   $("#btn-write").onclick=async()=>{if(!FILES.length)horn();try{const r=await api("/api/deploy",{files:FILES,guild:S});toast(`Wrote ${r.written.length} files${r.kept.length?`, kept ${r.kept.length}`:""}`);$("#localnote").textContent=`Written: ${r.written.join(", ")||"none"}. Kept: ${r.kept.join(", ")||"none"}.${r.refused.length?` Refused: ${r.refused.join(", ")}.`:""}`}catch(e){toast("Could not write: "+e.message)}};
 }
 newDraft();
-try{const s=JSON.parse(localStorage.getItem("agent-company-guild")||"null");if(s&&s.heroes){S={...blank(),...s}}else demo()}catch(e){demo()}
+try{const s=JSON.parse(localStorage.getItem("agent-company-guild")||"null");if(s&&s.heroes){S={...blank(),...s};migrate()}else demo()}catch(e){demo()}
 let w0="realm";try{w0=localStorage.getItem("agent-company-guild-world")||new URLSearchParams(location.search).get("world")||"realm"}catch(e){}
 applyWorld(w0);
 try{if(localStorage.getItem("agent-company-guild-hand")||matchMedia("(max-width:560px) and (pointer:coarse)").matches&&!localStorage.getItem("agent-company-guild-hand-seen"))setHand(!!localStorage.getItem("agent-company-guild-hand"))}catch(e){}

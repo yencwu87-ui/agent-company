@@ -11,7 +11,16 @@ Both write real files into your repository, and those files are what your agents
 
 ![Guild mode, Star Fleet world](docs/screens/guild-map-star.png)
 
-> **Demo videos** are in [`docs/media/`](docs/media/): a feature film of the whole flow, a paper-collage explainer, and an interactive isometric figure of how a quest moves through the guild.
+## Demo media
+
+| | |
+|---|---|
+| [**Feature film**](docs/media/agent-company-feature-film.mp4) (83 s) | The whole flow on the real pages: forge a Rogue and fit the harness, a refused drop, the readiness ring, the horn, the dispatch line, proof and level-up, trust credits and containment, four worlds and the phone. |
+| [**Explainer**](docs/media/agent-company-explainer.mp4) (93 s) | A paper-collage explainer of why Agent Company exists and how the game teaches it. Captions in [`.srt`](docs/media/agent-company-explainer.srt). |
+| [**Fig 2: the dispatch line**](docs/media/agent-company-anatomy.html) | Interactive isometric figure: a mission rides one rail from the inbox through the builder's press, the challenger's probe and the evaluator's gauge to the owner's desk. Click to make the owner step away. |
+| [**Fig 3: trust credits**](docs/media/trust-credits-anatomy.html) | Interactive isometric figure: the proof press and OpenProof seal, the outcome rack, the credit sight-glass, the credibility gauge and the containment cage. Click to jump to an escaped defect. |
+
+Open the figures from a downloaded copy of the repo, since GitHub shows HTML files as source.
 
 ---
 
@@ -23,15 +32,16 @@ Both write real files into your repository, and those files are what your agents
 5. [Handheld mode](#handheld-mode)
 6. [The OpenProof harness](#the-openproof-harness)
 7. [Proof, XP and levels](#proof-xp-and-levels)
-8. [The Command map](#the-command-map)
-9. [What gets written to your repo](#what-gets-written-to-your-repo)
-10. [Command reference](#command-reference)
-11. [Running the agents](#running-the-agents)
-12. [Safety model](#safety-model)
-13. [Tests](#tests)
-14. [Project layout](#project-layout)
-15. [FAQ](#faq)
-16. [Licence](#licence)
+8. [Trust: credits, reliability, credibility](#trust-credits-reliability-credibility)
+9. [The Command map](#the-command-map)
+10. [What gets written to your repo](#what-gets-written-to-your-repo)
+11. [Command reference](#command-reference)
+12. [Running the agents](#running-the-agents)
+13. [Safety model](#safety-model)
+14. [Tests](#tests)
+15. [Project layout](#project-layout)
+16. [FAQ](#faq)
+17. [Licence](#licence)
 
 ---
 
@@ -240,7 +250,51 @@ The **OpenProof evidence record** is what makes the proof checkable by anyone. I
 | 5 | 700 | 3 | |
 | 6 | 1000 | 3 | talent tier 3 |
 
+**Levels need more than XP** — see the trust gates below.
+
 **Vows never change, at any level:** never merges; never works on a protected branch; never sends real data to a hosted model. The owner doesn't level up; their job is to judge the proof.
+
+---
+
+## Trust: credits, reliability, credibility
+
+Levelling up is how an agent earns trust. It works like an **error budget held as credits**: incidents spend it, proven work earns it back, and an agent that spends it all is contained.
+
+**Every agent starts with 100 trust credits.**
+
+| Event | Credits (levels 1–2) | Who pays |
+|---|---|---|
+| Accepted clean, sealed by OpenProof | +8 | each agent on the quest |
+| Accepted clean, self-reported | +3 | each agent on the quest |
+| Sent back in review | −10 | the builder (the evaluator caught it) |
+| Escaped defect, found after acceptance | −25 | the builder |
+| Missed in review (the defect escaped) | −10 | the evaluator who approved it |
+| Vow breach | −60, and contained at once | the agent named |
+
+**The stakes rise with the level.** Deductions are ×1.5 at levels 3–4 and ×2 at levels 5–6. For example, an escaped defect costs a level-5 builder 50 credits. More trust (more quests at once) means less room for failure.
+
+| Credits | Status | What it means |
+|---|---|---|
+| 70–100 | **Trusted** | Normal work, can level up |
+| 40–69 | **Watch** | Normal work, can level up, worth a look |
+| 15–39 | **Probation** | One quest at a time, no level-ups |
+| under 15 | **Contained** | Pulled off every post and quest, can't be deployed, drops a level |
+
+**Restoring a contained agent:** the owner reviews it, refits its harness in the Forge and writes the lesson it keeps. The agent returns with **30 credits, on probation**, until it completes two sealed, clean quests and its credits recover.
+
+**Reliability and credibility** are also shown, over the last 10 quests. Reliability is the share that came out clean. Credibility ◆ is the share sealed with an OpenProof evidence record that anyone can re-check.
+
+**Level gates.** XP alone doesn't level an agent up. Each level also needs a track record and checkable proof:
+
+| To reach | XP | Clean quests | Sealed by OpenProof | Trust |
+|---|---|---|---|---|
+| Level 2 | 100 | 1 | any | 40+ credits, not contained |
+| Level 3 | 250 | 3 | 50% | 40+ credits, not contained |
+| Level 4 | 450 | 5 | 60% | 40+ credits, not contained |
+| Level 5 | 700 | 8 | 80% | 40+ credits, not contained |
+| Level 6 | 1000 | 12 | 90% | 40+ credits, not contained |
+
+The Training hall shows each gate with a tick, along with the credit bar and the recent outcomes. Every agent's sheet in `docs/ops/guild/` carries a Trust section, so the coordinator knows to give no work to a contained agent and one quest at a time to an agent on probation.
 
 ---
 
@@ -325,11 +379,12 @@ python3 agent_company.py --version
 ```sh
 python3 -m unittest discover -s tests -v       # 15 tests: CLI, refusals, deploy rules, local server and token
 npm i -D playwright && npx playwright install chromium
-node tests/test_ui.mjs                         # 28 browser checks: Command map, Guild, worlds, proof/XP, handheld on a phone
+node tests/test_ui.mjs                         # 37 browser checks: Command map, Guild, trust credits, worlds, proof/XP, handheld on a phone
 ```
 
 The browser tests cover:
 - drag and drop, and the refusals (wrong class, incomplete harness, level-1 quest limit);
+- trust credits: deductions scaled by level, Watch, containment under 15 credits or on a vow breach, restore on probation, and credibility gates on levels;
 - the Forge refusing a character without the full harness;
 - accept being disabled without proof, and a sealed quest giving full XP;
 - talent training, world renaming, and the deploy files;
@@ -349,6 +404,7 @@ scripts/              init_company.py and check_inbox.py (kept for older set-ups
 tests/                test_cli.py (unittest) and test_ui.mjs (Playwright)
 docs/screens/         screenshots used in this README
 docs/media/           demo videos and figures
+film-source/          the feature film's source (Lemo-Opuscar Living Screencast: page driver, voice lines, mix)
 SKILL.md              the Agent Skill: principles, roles, the playbook, mission discipline
 install.sh            install from a release zip
 ```
@@ -366,6 +422,8 @@ install.sh            install from a release zip
 **Can I play it on my phone?** Open the published page or `ui/guild.html` on your phone and turn on Handheld mode. To write into a repo, run `guild` on your computer.
 
 **Is the XP real?** It's the owner's record of proven work, kept in `guild/` next to the code. It doesn't grade the agent by itself; you do, with the proof in front of you.
+
+**Why trust credits?** Trust should rise with a record and fall with incidents, in the open, against the agent that caused them. Credits make the trade explicit: higher levels hold more work and pay more per incident, and no level comes without checkable proof.
 
 **Does the harness make an agent safe?** No tool can promise that. The harness lists the limits each agent must work within, and the game won't deploy a character without them. Enforcing them is your tool's settings' job, or the OpenProof harness kit's.
 

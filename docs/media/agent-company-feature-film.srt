@@ -1,0 +1,71 @@
+1
+00:00:01,000 --> 00:00:06,574
+Running a team of AI agents? Agent Company turns it into a game you can play.
+
+2
+00:00:07,400 --> 00:00:09,877
+Forge a character. Its class is its job.
+
+3
+00:00:09,877 --> 00:00:12,744
+Its origin is the tool it runs on.
+
+4
+00:00:13,000 --> 00:00:16,636
+Then fit the OpenProof harness: six limits it works within.
+
+5
+00:00:16,636 --> 00:00:19,000
+No harness, no deployment.
+
+6
+00:00:20,400 --> 00:00:25,320
+Drag your team onto the map. Put someone in the wrong slot, and the map refuses.
+
+7
+00:00:27,600 --> 00:00:29,722
+When the ring turns green, sound the horn.
+
+8
+00:00:29,722 --> 00:00:33,151
+The orders are written straight into your repository.
+
+9
+00:00:35,800 --> 00:00:40,483
+Then the work runs down the line. Tests first, a challenger, an independent review.
+
+10
+00:00:40,483 --> 00:00:42,312
+And only you merge.
+
+11
+00:00:43,600 --> 00:00:46,517
+When a quest comes back, no proof means no XP.
+
+12
+00:00:46,517 --> 00:00:50,705
+An OpenProof evidence record seals it for full credit.
+
+13
+00:00:55,400 --> 00:00:57,472
+Every agent carries trust credits.
+
+14
+00:00:57,472 --> 00:01:00,093
+Incidents cost the agent that caused them.
+
+15
+00:01:00,093 --> 00:01:02,743
+Below fifteen, it is contained.
+
+16
+00:01:08,400 --> 00:01:10,615
+Play it in any world, or build your own.
+
+17
+00:01:10,615 --> 00:01:12,423
+Even on your phone.
+
+18
+00:01:17,400 --> 00:01:21,502
+Agent Company. Free and open source, for any agent tool.
