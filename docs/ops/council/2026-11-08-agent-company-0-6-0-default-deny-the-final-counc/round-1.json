@@ -1,0 +1,66 @@
+[
+ {
+  "seat": "goal",
+  "scores": {
+   "A": 2,
+   "B": 8,
+   "C": 4
+  },
+  "stance": "B: two allowed commands turned bash into 'git' through PATH and rewrote .claude/settings.json; git show HEAD:.env printed a committed secret. Small, undoable fixes; the Git host controls are untouched, so the decision does not reopen.",
+  "ruin": "possible",
+  "one_way": false,
+  "confidence": 4,
+  "pillar": 8,
+  "fixes": [
+   "BLOCKING: refuse PATH= and other lookup variables; test cp /bin/bash src/git + env PATH=./src git",
+   "BLOCKING: secret check on bare rev:path (git show HEAD:.env)",
+   "list gap: git cat-file",
+   "node tests/../x.js (non-blocking)",
+   "README: shells never allowed (non-blocking)"
+  ]
+ },
+ {
+  "seat": "breaker",
+  "abstain": true,
+  "stance": "Abstained: a safety check stopped the seat's run before any probe ran, so it has no tested evidence. Not re-run, to keep the council inside the 450k-token budget the Roast Room verdict set."
+ },
+ {
+  "seat": "claims",
+  "scores": {
+   "A": 3,
+   "B": 8,
+   "C": 3
+  },
+  "stance": "B: every count checks out, but 'env without -C or -S' is false: env -iCdocs and env --ch=docs deleted the guard; listed programs with options that run commands (tar, sort, rg, zip); a listed shell such as mksh or busybox; cp --sym.",
+  "ruin": "none",
+  "one_way": false,
+  "confidence": 4,
+  "pillar": 6,
+  "fixes": [
+   "BLOCKING: env option clusters and abbreviations",
+   "list gap: tar/sort/rg/zip options that run programs",
+   "list gap: widen SHELLS",
+   "list gap: cp abbreviated link options",
+   "README script count wording (non-blocking)"
+  ]
+ },
+ {
+  "seat": "guardian",
+  "scores": {
+   "A": 8,
+   "B": 5,
+   "C": 2
+  },
+  "stance": "A: 26 of 30 hostile inputs refused; the 4 that got through were 1 list gap and 3 named known limits; none gets past both the separate agent account and branch protection.",
+  "ruin": "none",
+  "one_way": false,
+  "confidence": 4,
+  "pillar": 8,
+  "fixes": [
+   "list gap: git show/cat-file rev:path secret check",
+   "list gap: normalise node tests/ paths",
+   "pytest -p as a known limit (non-blocking)",
+   "README: the approval check doesn't read file contents (non-blocking)"
+  ]
+ }
+]

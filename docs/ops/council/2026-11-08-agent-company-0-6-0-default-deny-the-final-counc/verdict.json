@@ -1,0 +1,97 @@
+{
+ "claims_check": [],
+ "decision": "Agent Company 0.6.0: default deny, the final council",
+ "mode": "self-eval",
+ "round": 1,
+ "recommended": "B",
+ "recommended_text": "Fix the named issues first, then ship",
+ "label": "GO WITH CONDITIONS",
+ "option_scores": {
+  "A": 5.2,
+  "B": 6.5,
+  "C": 2.8
+ },
+ "math": {
+  "A": "A (2x2 + 1x3 + 3x8) / 6 = 5.2",
+  "B": "B (2x8 + 1x8 + 3x5) / 6 = 6.5",
+  "C": "C (2x4 + 1x3 + 3x2) / 6 = 2.8"
+ },
+ "spread": 3,
+ "confidence": 8,
+ "overrides": [],
+ "unanimity_warning": false,
+ "weak_pillars": [],
+ "abstained": [
+  {
+   "seat": "breaker",
+   "reason": "Abstained: a safety check stopped the seat's run before any probe ran, so it has no tested evidence. Not re-run, to keep the council inside the 450k-token budget the Roast Room verdict set."
+  }
+ ],
+ "seats": [
+  {
+   "seat": "goal",
+   "name": "Owner's goal",
+   "weight": 2,
+   "scores": {
+    "A": 2,
+    "B": 8,
+    "C": 4
+   },
+   "ruin": "possible",
+   "stance": "B: two allowed commands turned bash into 'git' through PATH and rewrote .claude/settings.json; git show HEAD:.env printed a committed secret. Small, undoable fixes; the Git host controls are untouched, so the decision does not reopen.",
+   "fixes": [
+    "BLOCKING: refuse PATH= and other lookup variables; test cp /bin/bash src/git + env PATH=./src git",
+    "BLOCKING: secret check on bare rev:path (git show HEAD:.env)",
+    "list gap: git cat-file",
+    "node tests/../x.js (non-blocking)",
+    "README: shells never allowed (non-blocking)"
+   ]
+  },
+  {
+   "seat": "claims",
+   "name": "Claims officer",
+   "weight": 1,
+   "scores": {
+    "A": 3,
+    "B": 8,
+    "C": 3
+   },
+   "ruin": "none",
+   "stance": "B: every count checks out, but 'env without -C or -S' is false: env -iCdocs and env --ch=docs deleted the guard; listed programs with options that run commands (tar, sort, rg, zip); a listed shell such as mksh or busybox; cp --sym.",
+   "fixes": [
+    "BLOCKING: env option clusters and abbreviations",
+    "list gap: tar/sort/rg/zip options that run programs",
+    "list gap: widen SHELLS",
+    "list gap: cp abbreviated link options",
+    "README script count wording (non-blocking)"
+   ]
+  },
+  {
+   "seat": "guardian",
+   "name": "Guardian",
+   "weight": 3,
+   "scores": {
+    "A": 8,
+    "B": 5,
+    "C": 2
+   },
+   "ruin": "none",
+   "stance": "A: 26 of 30 hostile inputs refused; the 4 that got through were 1 list gap and 3 named known limits; none gets past both the separate agent account and branch protection.",
+   "fixes": [
+    "list gap: git show/cat-file rev:path secret check",
+    "list gap: normalise node tests/ paths",
+    "pytest -p as a known limit (non-blocking)",
+    "README: the approval check doesn't read file contents (non-blocking)"
+   ]
+  }
+ ],
+ "scored": "2026-11-08T10:52:55+0800",
+ "inputs": {
+  "brief.json": "e567a99456c76532257b338bcf820a477f6c94410ecdc5b245d953d2c3fa046f",
+  "brief.md": "5552d52bf21cf3c9390b49fdfa8644c9e297287fab450ca52d1d9e972a3999ba",
+  "fixes-applied.md": "c9f0a774ce20fbed24a612866e49386f15755686399113aa97a7713893d0f4a2",
+  "guard-cases.md": "579951890078ca257ff882d89be2d7425b7342251a72b992969aaa3eef4bb960",
+  "round-1.json": "76b071640f96e5f52c16e04a242534c83b1330e9cc490b3a393546f65f43e7c3",
+  "verdict.md": "13fd60b8d4c2aeece38eb5909d2ec1c6c2a72d9e2e2fd55cb5953b3067cd67a9"
+ }
+}

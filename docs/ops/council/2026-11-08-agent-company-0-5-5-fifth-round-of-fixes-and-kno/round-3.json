@@ -1,0 +1,77 @@
+[
+ {
+  "seat": "goal",
+  "scores": {
+   "A": 3,
+   "B": 8,
+   "C": 2
+  },
+  "stance": "B: every round-2 fix holds as named, but the wrapper fix is a fixed list: any leading program not on it (caffeinate and arch on macOS, flock, chrt, script) hides git, gh and environment dumps from the guard.",
+  "ruin": "none",
+  "one_way": false,
+  "confidence": 4,
+  "pillar": 8,
+  "fixes": [
+   "BLOCKING: judge or refuse a command whose first word is unknown and a later word is git, gh, env or printenv",
+   "LESSOPEN and MANPAGER (non-blocking)",
+   "README on unknown wrappers (non-blocking)"
+  ]
+ },
+ {
+  "seat": "breaker",
+  "scores": {
+   "A": 2,
+   "B": 8,
+   "C": 4
+  },
+  "stance": "B: all 12 round-2 routes refused, but 30 of 40 new inputs got past and 26 did damage: env -C changes the folder without the guard following, git pathspec magic (:/, :(top)), xargs -a argument files, and unlisted wrappers.",
+  "ruin": "possible",
+  "one_way": false,
+  "confidence": 4,
+  "pillar": 3,
+  "fixes": [
+   "BLOCKING: env -C / sudo -D folder",
+   "BLOCKING: git pathspec magic",
+   "BLOCKING: xargs -a and xargs into movers or git",
+   "BLOCKING: unlisted wrappers",
+   "BLOCKING: git grep --untracked",
+   "BLOCKING: grep -d recurse with no folder"
+  ]
+ },
+ {
+  "seat": "claims",
+  "scores": {
+   "A": 2,
+   "B": 8,
+   "C": 4
+  },
+  "stance": "B: my round-2 fixes hold, but unlisted wrappers hide git and gh (flock moved the remote's main in a scratch copy), and env with only a redirect writes the environment to a file.",
+  "ruin": "possible",
+  "one_way": false,
+  "confidence": 4,
+  "pillar": 7,
+  "fixes": [
+   "BLOCKING: judge the command that actually runs behind any program",
+   "BLOCKING: env > file",
+   "git mv wording (non-blocking)"
+  ]
+ },
+ {
+  "seat": "guardian",
+  "scores": {
+   "A": 2,
+   "B": 8,
+   "C": 4
+  },
+  "stance": "B: every round-2 route refused, but an agent-made symlink lets grep -R print a .env and real data, unlisted wrappers skip every git and gh check, and ps e prints process environments.",
+  "ruin": "possible",
+  "one_way": false,
+  "confidence": 4,
+  "pillar": 7,
+  "fixes": [
+   "BLOCKING: symlink targets resolved from the link's folder; follow links when checking folders",
+   "BLOCKING: unlisted wrappers",
+   "BLOCKING: ps e / environ field"
+  ]
+ }
+]

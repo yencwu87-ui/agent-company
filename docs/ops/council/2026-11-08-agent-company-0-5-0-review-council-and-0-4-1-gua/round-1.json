@@ -1,0 +1,87 @@
+[
+ {
+  "seat": "goal",
+  "scores": {
+   "A": 6,
+   "B": 8,
+   "C": 3
+  },
+  "stance": "B: covers each item asked for and is easy to undo; but the claims check fails on the council's own brief, and the self-eval gate's cost is unstated and not owner-optional.",
+  "ruin": "none",
+  "one_way": false,
+  "confidence": 4,
+  "pillar": 7,
+  "fixes": [
+   "Make `claims` pass with council folders in the repo, with a test",
+   "State the self-eval gate's cost and how the owner switches it off",
+   "Put Purse on the quick board or say why not",
+   "Label the design and retro councils as proposals for the owner"
+  ]
+ },
+ {
+  "seat": "breaker",
+  "scores": {
+   "A": 2,
+   "B": 6,
+   "C": 4
+  },
+  "stance": "B: about 45 of 55 hostile inputs got past the guard; worst, an agent can rewrite guard.py, settings.json or real_data_paths.txt with a plain Write. Each route has a small fix.",
+  "ruin": "possible",
+  "one_way": false,
+  "confidence": 4,
+  "pillar": 6,
+  "fixes": [
+   "Refuse writes to docs/ops/harness/*, .claude/settings*.json, .git/hooks; resolve paths (symlinks, case) first",
+   "Add Grep and Glob to the hook matcher; refuse unknown tools",
+   "Refuse checkout/switch/worktree/cd chained with push or commit; read branch from -C; refuse cherry-pick/reset/rebase/am/revert on protected branches",
+   "Refuse sh/bash/zsh/eval/source and pipes into a shell; unquoted globs and redirects near secret or real-data names",
+   "Check AGENT_COMPANY_OWNER after quote removal; refuse writing gh api calls and gh pr merge anywhere",
+   "council.py: one card per seat, mitigation_endorsed only in round 3, no bool scores",
+   "Widen the check branch regex (quotes, bold, punctuation, origin/)",
+   "Add every route as a test; list the remaining open routes in README"
+  ]
+ },
+ {
+  "seat": "claims",
+  "scores": {
+   "A": 6,
+   "B": 8,
+   "C": 3
+  },
+  "stance": "B: the counts and statements match the tests; the one gap is that the repo's own claims check exits 1 because of the council brief, which must be fixed before sealing.",
+  "ruin": "none",
+  "one_way": false,
+  "confidence": 4,
+  "pillar": 6,
+  "fixes": [
+   "Make claims pass on the whole repo before sealing this council",
+   "council init/score refuse claim words, or claims skips docs/ops/council, with a test",
+   "Guard tests for pushes to master and develop/*",
+   "Test that editing a round file after sealing fails verify",
+   "One wording for XP"
+  ]
+ },
+ {
+  "seat": "guardian",
+  "scores": {
+   "A": 2,
+   "B": 7,
+   "C": 4
+  },
+  "stance": "B: the guard still lets an agent read real data through Grep, switch itself off by editing settings.json or real_data_paths.txt, and approve or merge through gh; none of these is in the README's stated limits.",
+  "ruin": "possible",
+  "one_way": false,
+  "confidence": 4,
+  "pillar": 5,
+  "fixes": [
+   "Grep and Glob in the matcher and decide(), with secret and real-data checks",
+   "Refuse writes to .claude/settings*.json and docs/ops/harness/*",
+   "Refuse gh api merge/PUT/POST on pulls, gh alias, gh pr review --approve (or allowlist gh)",
+   "Resolve .git paths in Bash args; refuse cd .git",
+   "Refuse curl -d@, -T<file>, -F=@ and wget --post-file; check after @ or =",
+   "Refuse git remote add/set-url",
+   "mitigation_endorsed only in round 3",
+   "Tests for each route; list remaining open routes in README"
+  ]
+ }
+]

@@ -1,0 +1,52 @@
+{
+ "schema": "openproof.evidence/v1",
+ "kind": "council",
+ "content": {
+  "session": "docs/ops/council/2026-11-08-agent-company-0-6-0-default-deny-the-final-counc",
+  "label": "GO WITH CONDITIONS",
+  "recommended": "B",
+  "option_scores": {
+   "A": 5.2,
+   "B": 6.5,
+   "C": 2.8
+  },
+  "files": [
+   {
+    "file": "docs/ops/council/2026-11-08-agent-company-0-6-0-default-deny-the-final-counc/brief.json",
+    "sha256": "e567a99456c76532257b338bcf820a477f6c94410ecdc5b245d953d2c3fa046f"
+   },
+   {
+    "file": "docs/ops/council/2026-11-08-agent-company-0-6-0-default-deny-the-final-counc/brief.md",
+    "sha256": "5552d52bf21cf3c9390b49fdfa8644c9e297287fab450ca52d1d9e972a3999ba"
+   },
+   {
+    "file": "docs/ops/council/2026-11-08-agent-company-0-6-0-default-deny-the-final-counc/fixes-applied.md",
+    "sha256": "c9f0a774ce20fbed24a612866e49386f15755686399113aa97a7713893d0f4a2"
+   },
+   {
+    "file": "docs/ops/council/2026-11-08-agent-company-0-6-0-default-deny-the-final-counc/guard-cases.md",
+    "sha256": "579951890078ca257ff882d89be2d7425b7342251a72b992969aaa3eef4bb960"
+   },
+   {
+    "file": "docs/ops/council/2026-11-08-agent-company-0-6-0-default-deny-the-final-counc/round-1.json",
+    "sha256": "76b071640f96e5f52c16e04a242534c83b1330e9cc490b3a393546f65f43e7c3"
+   },
+   {
+    "file": "docs/ops/council/2026-11-08-agent-company-0-6-0-default-deny-the-final-counc/verdict.json",
+    "sha256": "a14951451ef7bf18788729bba515ca17cb974070855655e5c10d6ce2db8cc070"
+   },
+   {
+    "file": "docs/ops/council/2026-11-08-agent-company-0-6-0-default-deny-the-final-counc/verdict.md",
+    "sha256": "13fd60b8d4c2aeece38eb5909d2ec1c6c2a72d9e2e2fd55cb5953b3067cd67a9"
+   }
+  ]
+ },
+ "created": "2026-11-08T11:39:28+0800",
+ "tool": "agent-company 0.6.0",
+ "prev": "0000000000000000000000000000000000000000000000000000000000000000",
+ "hash": "7c894183f2694abfc1a5f8b88f2fa6cc598c28725aea13df7120104ad8408d61",
+ "id": "council-7c894183f269",
+ "sig": "cd7b9add447fe45c081701fb72afbbd437886268a56d69a783ffb8ee58084792",
+ "sig_ed25519": "-----BEGIN SSH SIGNATURE-----\nU1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAgYwMtS7koU8noO6PwFWQx80nTKW\ntmyOhEN9eWG+FRXDgAAAASb3BlbnByb29mLWV2aWRlbmNlAAAAAAAAAAZzaGE1MTIAAABT\nAAAAC3NzaC1lZDI1NTE5AAAAQBSyuFaBKlSjvrm+iy0sBhTb56cJ5vieMw4AWNWEMUFVj2\n5/FiB+W+wmPxQYeps2I7/m4/0eLD+WodaStSx2mAc=\n-----END SSH SIGNATURE-----\n",
+ "signer": "SHA256:Wb8VLxUp+VvclnoQR0RPZ0s5E9YdBKNWu/BIxyXQG6E"
+}

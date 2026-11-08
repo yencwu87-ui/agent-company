@@ -1,0 +1,105 @@
+{
+ "claims_check": [],
+ "decision": "Agent Company 0.5.2: second round of council fixes",
+ "mode": "self-eval",
+ "round": 1,
+ "recommended": "B",
+ "recommended_text": "Fix the named issues first, then ship",
+ "label": "GO WITH CONDITIONS",
+ "option_scores": {
+  "A": 3.7,
+  "B": 7.0,
+  "C": 3.4
+ },
+ "math": {
+  "A": "A (2x7 + 3x3 + 1x4 + 3x2) / 9 = 3.7",
+  "B": "B (2x8 + 3x6 + 1x8 + 3x7) / 9 = 7.0",
+  "C": "C (2x2 + 3x4 + 1x3 + 3x4) / 9 = 3.4"
+ },
+ "spread": 2,
+ "confidence": 7,
+ "overrides": [],
+ "unanimity_warning": false,
+ "weak_pillars": [],
+ "seats": [
+  {
+   "seat": "goal",
+   "name": "Owner's goal",
+   "weight": 2,
+   "scores": {
+    "A": 7,
+    "B": 8,
+    "C": 2
+   },
+   "ruin": "none",
+   "stance": "B: answers all three 0.5.1 goal fixes and keeps every gate off and owner-switched; an older set-up never gets the gates list.",
+   "fixes": [
+    "init or doctor adds the gates list to an older inbox README (non-blocking)",
+    "seal states it checks only its own folder (non-blocking)"
+   ]
+  },
+  {
+   "seat": "breaker",
+   "name": "Breaker",
+   "weight": 3,
+   "scores": {
+    "A": 3,
+    "B": 6,
+    "C": 4
+   },
+   "ruin": "possible",
+   "stance": "B with low confidence: the 0.5.1 list maps to code, but this round's hostile testing was cut short.",
+   "fixes": [
+    "BLOCKING: re-run the 0.5.1 hostile cases on an installed copy and record each refusal line in the council folder",
+    "test that a guard exception exits 2",
+    "README states the Read tool may read harness files"
+   ]
+  },
+  {
+   "seat": "claims",
+   "name": "Claims officer",
+   "weight": 1,
+   "scores": {
+    "A": 4,
+    "B": 8,
+    "C": 3
+   },
+   "ruin": "none",
+   "stance": "B: counts and behaviour match, but gh approval text via --body-file gets through, and the README calls upload spellings tested that no test covers.",
+   "fixes": [
+    "BLOCKING: cover gh --body-file/-F",
+    "BLOCKING: tests for every upload spelling the README names",
+    "tests for bisect run, archive --remote, find -delete, --url-query @, ~user, ~/.claude",
+    "no empty test overrides"
+   ]
+  },
+  {
+   "seat": "guardian",
+   "name": "Guardian",
+   "weight": 3,
+   "scores": {
+    "A": 2,
+    "B": 7,
+    "C": 4
+   },
+   "ruin": "possible",
+   "stance": "B: six routes outside the README's open list: git clean/stash/reset remove the harness, .gitignore edits let real data into commits, approval via --body-file, commits signed in the owner's name, agent writes to the inbox, push -o auto-merge.",
+   "fixes": [
+    "BLOCKING: git clean, stash -u, reset --hard, checkout/restore of other commits",
+    "BLOCKING: protect .gitignore; refuse git add . / -A with real data; pre-push refuses real-data paths",
+    "BLOCKING: gh --body-file and wider approval wording",
+    "BLOCKING: commit -s, --trailer, owner user.name",
+    "BLOCKING: agent writes to the inbox",
+    "BLOCKING: push -o",
+    "evidence append-only for agents"
+   ]
+  }
+ ],
+ "scored": "2026-11-08T08:22:50+0800",
+ "inputs": {
+  "brief.json": "64273328c2b01d4f7c8830381153558fd0152e83119d4b4fbb6d948de00c7258",
+  "brief.md": "f6132536f1ffa3594a04a8ca435d63a6189f8d7daeec14e26410ecfc6831b580",
+  "round-1.json": "c0b7bce5f87b97072aeee54fab20b6439e376b1050f5cc84b59572c9aaee82bf",
+  "verdict.md": "9dfc1bdb5b7a449956cdc7ae7b985b4958502cff76e4a132944971ba42b18a0e"
+ }
+}

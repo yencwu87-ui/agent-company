@@ -1,0 +1,22 @@
+{
+ "decision": "Agent Company 0.5.5: fifth round of fixes and known limits",
+ "mode": "self-eval",
+ "options": {
+  "A": "Ship as it is (open the pull request for the owner)",
+  "B": "Fix the named issues first, then ship",
+  "C": "Send it back to the builder"
+ },
+ "board": [
+  "goal",
+  "breaker",
+  "claims",
+  "guardian"
+ ],
+ "weights": {
+  "goal": 2,
+  "breaker": 3,
+  "claims": 1,
+  "guardian": 3
+ },
+ "created": "2026-11-08T08:41:30+0800"
+}

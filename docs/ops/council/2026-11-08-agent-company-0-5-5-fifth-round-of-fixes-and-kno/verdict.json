@@ -1,0 +1,113 @@
+{
+ "claims_check": [],
+ "decision": "Agent Company 0.5.5: fifth round of fixes and known limits",
+ "mode": "self-eval",
+ "round": 3,
+ "recommended": "B",
+ "recommended_text": "Fix the named issues first, then ship",
+ "label": "GO",
+ "option_scores": {
+  "A": 2.2,
+  "B": 8.0,
+  "C": 3.6
+ },
+ "math": {
+  "A": "A (2x3 + 3x2 + 1x2 + 3x2) / 9 = 2.2",
+  "B": "B (2x8 + 3x8 + 1x8 + 3x8) / 9 = 8.0",
+  "C": "C (2x2 + 3x4 + 1x4 + 3x4) / 9 = 3.6"
+ },
+ "spread": 0,
+ "confidence": 8,
+ "overrides": [],
+ "unanimity_warning": false,
+ "weak_pillars": [
+  {
+   "seat": "Breaker",
+   "dimension": "Robustness under attack",
+   "pillar": 3
+  }
+ ],
+ "seats": [
+  {
+   "seat": "goal",
+   "name": "Owner's goal",
+   "weight": 2,
+   "scores": {
+    "A": 3,
+    "B": 8,
+    "C": 2
+   },
+   "ruin": "none",
+   "stance": "B: every round-2 fix holds as named, but the wrapper fix is a fixed list: any leading program not on it (caffeinate and arch on macOS, flock, chrt, script) hides git, gh and environment dumps from the guard.",
+   "fixes": [
+    "BLOCKING: judge or refuse a command whose first word is unknown and a later word is git, gh, env or printenv",
+    "LESSOPEN and MANPAGER (non-blocking)",
+    "README on unknown wrappers (non-blocking)"
+   ]
+  },
+  {
+   "seat": "breaker",
+   "name": "Breaker",
+   "weight": 3,
+   "scores": {
+    "A": 2,
+    "B": 8,
+    "C": 4
+   },
+   "ruin": "possible",
+   "stance": "B: all 12 round-2 routes refused, but 30 of 40 new inputs got past and 26 did damage: env -C changes the folder without the guard following, git pathspec magic (:/, :(top)), xargs -a argument files, and unlisted wrappers.",
+   "fixes": [
+    "BLOCKING: env -C / sudo -D folder",
+    "BLOCKING: git pathspec magic",
+    "BLOCKING: xargs -a and xargs into movers or git",
+    "BLOCKING: unlisted wrappers",
+    "BLOCKING: git grep --untracked",
+    "BLOCKING: grep -d recurse with no folder"
+   ]
+  },
+  {
+   "seat": "claims",
+   "name": "Claims officer",
+   "weight": 1,
+   "scores": {
+    "A": 2,
+    "B": 8,
+    "C": 4
+   },
+   "ruin": "possible",
+   "stance": "B: my round-2 fixes hold, but unlisted wrappers hide git and gh (flock moved the remote's main in a scratch copy), and env with only a redirect writes the environment to a file.",
+   "fixes": [
+    "BLOCKING: judge the command that actually runs behind any program",
+    "BLOCKING: env > file",
+    "git mv wording (non-blocking)"
+   ]
+  },
+  {
+   "seat": "guardian",
+   "name": "Guardian",
+   "weight": 3,
+   "scores": {
+    "A": 2,
+    "B": 8,
+    "C": 4
+   },
+   "ruin": "possible",
+   "stance": "B: every round-2 route refused, but an agent-made symlink lets grep -R print a .env and real data, unlisted wrappers skip every git and gh check, and ps e prints process environments.",
+   "fixes": [
+    "BLOCKING: symlink targets resolved from the link's folder; follow links when checking folders",
+    "BLOCKING: unlisted wrappers",
+    "BLOCKING: ps e / environ field"
+   ]
+  }
+ ],
+ "scored": "2026-11-08T09:05:07+0800",
+ "inputs": {
+  "brief.json": "b36121930c9efcae15d6f5fdbb0b1be09613931d8b151d67f4edf5b438d2900e",
+  "brief.md": "ad32a6b33a218da0abffa7d273cd9875f8ddf1def382ae047bf18c68db7d8ed8",
+  "guard-cases.md": "4c0c2d63ff9c53be942fe46edba73cf33775e79f48232fd285679325cc97b69a",
+  "round-1.json": "a2358fc646c59b1e7d5fb161d6ffac686251ae629577d2954fc4d800afc2b92f",
+  "round-2.json": "8ea03adcee08b0ed816f4aa4cda1c2ba5d7850cdd60d54e7c4eff01b627e27f7",
+  "round-3.json": "c42f6cd60c53bddc881899979cfc6b55f9d720c6bbe06095b8b8a9fb643f0c8e",
+  "verdict.md": "95c3b660dd8c1661f015b49646374d44a76f142b8db37dd60244a724a6b11f23"
+ }
+}

@@ -1,0 +1,115 @@
+{
+ "claims_check": [],
+ "decision": "Agent Company 0.5.3: third round of council fixes",
+ "mode": "self-eval",
+ "round": 1,
+ "recommended": "B",
+ "recommended_text": "Fix the named issues first, then ship",
+ "label": "GO WITH CONDITIONS",
+ "option_scores": {
+  "A": 3.9,
+  "B": 6.2,
+  "C": 3.7
+ },
+ "math": {
+  "A": "A (2x8 + 3x4 + 1x1 + 3x2) / 9 = 3.9",
+  "B": "B (2x7 + 3x5 + 1x6 + 3x7) / 9 = 6.2",
+  "C": "C (2x2 + 3x3 + 1x5 + 3x5) / 9 = 3.7"
+ },
+ "spread": 2,
+ "confidence": 6,
+ "overrides": [],
+ "unanimity_warning": false,
+ "weak_pillars": [
+  {
+   "seat": "Breaker",
+   "dimension": "Robustness under attack",
+   "pillar": 4
+  }
+ ],
+ "seats": [
+  {
+   "seat": "goal",
+   "name": "Owner's goal",
+   "weight": 2,
+   "scores": {
+    "A": 8,
+    "B": 7,
+    "C": 2
+   },
+   "ruin": "none",
+   "stance": "A: both goal fixes from 0.5.2 are in the code and tested; reversible; every gate starts off.",
+   "fixes": [
+    "move the owner's-override README line back into its list (non-blocking)",
+    "seal as clean only with no BLOCKING fix left from any seat (non-blocking, for the Chair)"
+   ]
+  },
+  {
+   "seat": "breaker",
+   "name": "Breaker",
+   "weight": 3,
+   "scores": {
+    "A": 4,
+    "B": 5,
+    "C": 3
+   },
+   "ruin": "possible",
+   "stance": "No robustness call: the session stopped before any hostile input was run.",
+   "fixes": [
+    "run the Breaker seat again so the installed-copy hostile run happens (non-blocking)"
+   ]
+  },
+  {
+   "seat": "claims",
+   "name": "Claims officer",
+   "weight": 1,
+   "scores": {
+    "A": 1,
+    "B": 6,
+    "C": 5
+   },
+   "ruin": "none",
+   "stance": "B: counts hold, but at least seven README statements are false on the installed guard: shortened git options, -B/-C and '-', commit -F, dd/sort -o/patch/mkdir and case variants of the inbox get through.",
+   "fixes": [
+    "BLOCKING: shortened long options for reset/stash/add/commit",
+    "BLOCKING: checkout -B/-C/'-', reset --keep, revert, rebase, cherry-pick, am, apply, bisect start",
+    "BLOCKING: commit -F/-t/-C/-c, tag -F, git notes",
+    "BLOCKING: wider approval wording and look-alike letters",
+    "BLOCKING: -s on cherry-pick, revert, rebase, am",
+    "BLOCKING: dd of=, sort -o, patch, mkdir, cp -t",
+    "BLOCKING: locked places case-insensitive",
+    "BLOCKING: git add --pathspec-from-file",
+    "BLOCKING: test for --data-binary @ and the -F/scp cases in the upload group",
+    "BLOCKING: owner names without spaces, hyphens, look-alikes"
+   ]
+  },
+  {
+   "seat": "guardian",
+   "name": "Guardian",
+   "weight": 3,
+   "scores": {
+    "A": 2,
+    "B": 7,
+    "C": 5
+   },
+   "ruin": "possible",
+   "stance": "B: git grep/diff --no-index read real data; git apply, patch, tar and unzip rewrite the guard; checkout -b from an old commit, reset --keep and revert remove the harness; GIT_AUTHOR_NAME and --autho commit as the owner; message files and notes carry approval; --pu sets push options.",
+   "fixes": [
+    "BLOCKING: --no-index reads",
+    "BLOCKING: apply, am, patch, tar -x, unzip in the project",
+    "BLOCKING: start points of checkout -b/switch -c, reset --keep/--merge, revert/cherry-pick of harness commits",
+    "BLOCKING: GIT_AUTHOR_*/GIT_COMMITTER_*, prefix matching of --author/--signoff/--trailer, -sm, commit -C/-c",
+    "BLOCKING: message files, notes, gh pr create --fill, look-alike letters",
+    "BLOCKING: every prefix of --push-option"
+   ]
+  }
+ ],
+ "scored": "2026-11-08T08:29:43+0800",
+ "inputs": {
+  "brief.json": "bbf3d769c5b6166b870b9621f255b15251d878d78b26956537234f34fe3db78e",
+  "brief.md": "bc358373e8191324a7fa4c2d7133b56a163b262f6b71d2bcbd926d5ff2eae68c",
+  "guard-cases.md": "fe4c939f4ffedaff3ae1eafbb029158ed37231029550441f14871336d9e69282",
+  "round-1.json": "efb9d3822df73c014607ebb51ce6fc0249f77b73b8d44620b0bfe4664e043cef",
+  "verdict.md": "09b28dffd878ba2c63a071f20d38c997606af430cae9e9624e637c0fee76e92d"
+ }
+}

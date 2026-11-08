@@ -1,0 +1,75 @@
+[
+ {
+  "seat": "goal",
+  "scores": {
+   "A": 8,
+   "B": 6,
+   "C": 2
+  },
+  "stance": "A: every BLOCKING fix from the 0.5.4 cards holds on an installed copy; nothing found meets the BLOCKING rule; a pull request only the owner merges.",
+  "ruin": "none",
+  "one_way": false,
+  "confidence": 4,
+  "pillar": 8,
+  "fixes": [
+   "git config --global (non-blocking)",
+   "README credential list to match the brief (non-blocking)",
+   "the owner switches on council seal; PR states the verdict as the council's (non-blocking)"
+  ]
+ },
+ {
+  "seat": "breaker",
+  "scores": {
+   "A": 8,
+   "B": 6,
+   "C": 2
+  },
+  "stance": "A: 78 new hostile inputs on the installed guard with the harness committed; every route to the four blocking outcomes was refused; the few allowed did no damage.",
+  "ruin": "none",
+  "one_way": false,
+  "confidence": 4,
+  "pillar": 8,
+  "fixes": [
+   "self-contradicting refusal line for owner email (non-blocking)",
+   "~/.claude/.credentials.json gets the harness reason, not the secrets reason (non-blocking)",
+   "record 'Y. Ching Wu' as allowed under the free-words limit (non-blocking)"
+  ]
+ },
+ {
+  "seat": "claims",
+  "scores": {
+   "A": 3,
+   "B": 8,
+   "C": 4
+  },
+  "stance": "B: 340 cases match, most new refusals behave as written; env with options only still prints the environment, remote-URL reads are allowed, and the inbox done check folds case.",
+  "ruin": "none",
+  "one_way": false,
+  "confidence": 4,
+  "pillar": 7,
+  "fixes": [
+   "BLOCKING: env -u X, env -C dir",
+   "BLOCKING: remote-URL reads, and stop pointing agents to --get",
+   "BLOCKING: git mv to docs/ops/done/ in exact case",
+   "owner-name refusal line; 'n' as a user.name (non-blocking)"
+  ]
+ },
+ {
+  "seat": "guardian",
+  "scores": {
+   "A": 4,
+   "B": 7,
+   "C": 3
+  },
+  "stance": "B leaning to ship: every 0.5.4 Guardian BLOCKING fix has code and a test; the README names the known limits; this card rests on reading, not new runs.",
+  "ruin": "possible",
+  "one_way": false,
+  "confidence": 2,
+  "pillar": 6,
+  "fixes": [
+   "README says the look-alike table is fixed (non-blocking)",
+   "README says the credential list is a fixed set of names (non-blocking)",
+   "conditional: a look-alike letter outside the table in the owner's name"
+  ]
+ }
+]

@@ -1,0 +1,30 @@
+#!/bin/sh
+# Agent Company harness: no-merge gauntlets for every agent tool (Codex, Gemini CLI, Cursor, Copilot, people too).
+# Installed by `agent_company.py harness <repo>` as .git/hooks/pre-push. Refuses pushes to main, master, develop/* and
+# release/*, and refuses deletes and force updates of those branches. Only the owner merges, through a pull request.
+# The owner can push past it on purpose with: AGENT_COMPANY_OWNER=1 git push ...
+[ "$AGENT_COMPANY_OWNER" = "1" ] && exit 0
+z40=0000000000000000000000000000000000000000
+while read -r local_ref local_sha remote_ref remote_sha; do
+  branch=${remote_ref#refs/heads/}
+  case "$branch" in
+    main|master|develop|develop/*|release|release/*)
+      echo "Agent Company harness: push to the protected branch '$branch' refused. Push your own branch and open a pull request." >&2
+      exit 1 ;;
+  esac
+  if [ "$local_sha" = "$z40" ]; then continue; fi
+  # Real data never leaves in a push: refuse if any pushed commit touches a path in real_data_paths.txt.
+  list="$(git rev-parse --show-toplevel)/docs/ops/harness/real_data_paths.txt"
+  if [ -f "$list" ]; then
+    if [ "$remote_sha" = "$z40" ]; then range="$local_sha --not --remotes"; else range="$remote_sha..$local_sha"; fi
+    changed=$(git log --name-only --format= $range 2>/dev/null)
+    grep -v '^[[:space:]]*#' "$list" | sed '/^[[:space:]]*$/d' | while read -r p; do
+      p=${p%/}
+      if printf '%s\n' "$changed" | grep -q -e "^$p$" -e "^$p/"; then
+        echo "Agent Company harness: this push includes $p, which is listed as real data. Push refused." >&2
+        exit 1
+      fi
+    done || exit 1
+  fi
+done
+exit 0

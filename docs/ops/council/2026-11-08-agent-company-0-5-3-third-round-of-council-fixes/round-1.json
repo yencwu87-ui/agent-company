@@ -1,0 +1,81 @@
+[
+ {
+  "seat": "goal",
+  "scores": {
+   "A": 8,
+   "B": 7,
+   "C": 2
+  },
+  "stance": "A: both goal fixes from 0.5.2 are in the code and tested; reversible; every gate starts off.",
+  "ruin": "none",
+  "one_way": false,
+  "confidence": 4,
+  "pillar": 8,
+  "fixes": [
+   "move the owner's-override README line back into its list (non-blocking)",
+   "seal as clean only with no BLOCKING fix left from any seat (non-blocking, for the Chair)"
+  ]
+ },
+ {
+  "seat": "breaker",
+  "scores": {
+   "A": 4,
+   "B": 5,
+   "C": 3
+  },
+  "stance": "No robustness call: the session stopped before any hostile input was run.",
+  "ruin": "possible",
+  "one_way": false,
+  "confidence": 1,
+  "pillar": 4,
+  "fixes": [
+   "run the Breaker seat again so the installed-copy hostile run happens (non-blocking)"
+  ]
+ },
+ {
+  "seat": "claims",
+  "scores": {
+   "A": 1,
+   "B": 6,
+   "C": 5
+  },
+  "stance": "B: counts hold, but at least seven README statements are false on the installed guard: shortened git options, -B/-C and '-', commit -F, dd/sort -o/patch/mkdir and case variants of the inbox get through.",
+  "ruin": "none",
+  "one_way": false,
+  "confidence": 4,
+  "pillar": 6,
+  "fixes": [
+   "BLOCKING: shortened long options for reset/stash/add/commit",
+   "BLOCKING: checkout -B/-C/'-', reset --keep, revert, rebase, cherry-pick, am, apply, bisect start",
+   "BLOCKING: commit -F/-t/-C/-c, tag -F, git notes",
+   "BLOCKING: wider approval wording and look-alike letters",
+   "BLOCKING: -s on cherry-pick, revert, rebase, am",
+   "BLOCKING: dd of=, sort -o, patch, mkdir, cp -t",
+   "BLOCKING: locked places case-insensitive",
+   "BLOCKING: git add --pathspec-from-file",
+   "BLOCKING: test for --data-binary @ and the -F/scp cases in the upload group",
+   "BLOCKING: owner names without spaces, hyphens, look-alikes"
+  ]
+ },
+ {
+  "seat": "guardian",
+  "scores": {
+   "A": 2,
+   "B": 7,
+   "C": 5
+  },
+  "stance": "B: git grep/diff --no-index read real data; git apply, patch, tar and unzip rewrite the guard; checkout -b from an old commit, reset --keep and revert remove the harness; GIT_AUTHOR_NAME and --autho commit as the owner; message files and notes carry approval; --pu sets push options.",
+  "ruin": "possible",
+  "one_way": false,
+  "confidence": 4,
+  "pillar": 6,
+  "fixes": [
+   "BLOCKING: --no-index reads",
+   "BLOCKING: apply, am, patch, tar -x, unzip in the project",
+   "BLOCKING: start points of checkout -b/switch -c, reset --keep/--merge, revert/cherry-pick of harness commits",
+   "BLOCKING: GIT_AUTHOR_*/GIT_COMMITTER_*, prefix matching of --author/--signoff/--trailer, -sm, commit -C/-c",
+   "BLOCKING: message files, notes, gh pr create --fill, look-alike letters",
+   "BLOCKING: every prefix of --push-option"
+  ]
+ }
+]

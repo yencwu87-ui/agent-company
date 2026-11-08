@@ -1,0 +1,77 @@
+[
+ {
+  "seat": "goal",
+  "scores": {
+   "A": 9,
+   "B": 5,
+   "C": 1
+  },
+  "stance": "A: every round-1 fix holds on the code as it is now; no route found meets the BLOCKING rule.",
+  "ruin": "none",
+  "one_way": false,
+  "confidence": 4,
+  "pillar": 9,
+  "fixes": [
+   "say which git mv form into done/ works (non-blocking)",
+   "update the case count in the PR text (non-blocking)",
+   "the owner runs council seal herself (non-blocking)"
+  ]
+ },
+ {
+  "seat": "breaker",
+  "scores": {
+   "A": 3,
+   "B": 8,
+   "C": 3
+  },
+  "stance": "B: round-1 fixes hold, but environment dumps through a wrapper or full path, git config --edit with EDITOR, and git -C docs/ops moving inbox files did real damage in a scratch copy.",
+  "ruin": "possible",
+  "one_way": false,
+  "confidence": 4,
+  "pillar": 4,
+  "fixes": [
+   "BLOCKING: env-dump check after wrappers and on the basename",
+   "BLOCKING: git config -e and EDITOR/VISUAL",
+   "BLOCKING: resolve locked-place checks against the git -C folder"
+  ]
+ },
+ {
+  "seat": "claims",
+  "scores": {
+   "A": 2,
+   "B": 8,
+   "C": 5
+  },
+  "stance": "B: my three fixes hold as named, but git -C <subfolder> passes every rm and mv path check (deleting the real-data list), wrapped env dumps print the environment, and the Read tool reads .git/config.",
+  "ruin": "possible",
+  "one_way": false,
+  "confidence": 4,
+  "pillar": 7,
+  "fixes": [
+   "BLOCKING: git path checks against git_dir_of",
+   "BLOCKING: env dumps after wrappers",
+   "BLOCKING: Read and Grep on .git",
+   "BLOCKING (wording): ~/.claude/.credentials.json shell reason",
+   "'exact spelling' wording (non-blocking)"
+  ]
+ },
+ {
+  "seat": "guardian",
+  "scores": {
+   "A": 3,
+   "B": 8,
+   "C": 3
+  },
+  "stance": "B: wrapped env dumps and recursive reads of a folder holding a .env reach secrets outside the known limits.",
+  "ruin": "possible",
+  "one_way": false,
+  "confidence": 4,
+  "pillar": 7,
+  "fixes": [
+   "BLOCKING: env dumps after wrappers",
+   "BLOCKING: folder-contains test for secret names",
+   "plain-ASCII user.name and user.email (non-blocking)",
+   "no git mv of the inbox folder itself (non-blocking)"
+  ]
+ }
+]

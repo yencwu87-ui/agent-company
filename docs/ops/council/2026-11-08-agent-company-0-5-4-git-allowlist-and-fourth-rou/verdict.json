@@ -1,0 +1,116 @@
+{
+ "claims_check": [],
+ "decision": "Agent Company 0.5.4: git allowlist and fourth round of fixes",
+ "mode": "self-eval",
+ "round": 1,
+ "recommended": "B",
+ "recommended_text": "Fix the named issues first, then ship",
+ "label": "GO WITH CONDITIONS",
+ "option_scores": {
+  "A": 2.9,
+  "B": 7.4,
+  "C": 4.2
+ },
+ "math": {
+  "A": "A (2x4 + 3x3 + 1x3 + 3x2) / 9 = 2.9",
+  "B": "B (2x7 + 3x8 + 1x8 + 3x7) / 9 = 7.4",
+  "C": "C (2x3 + 3x4 + 1x5 + 3x5) / 9 = 4.2"
+ },
+ "spread": 1,
+ "confidence": 8,
+ "overrides": [],
+ "unanimity_warning": true,
+ "weak_pillars": [
+  {
+   "seat": "Guardian",
+   "dimension": "Downside and standing rules",
+   "pillar": 4
+  }
+ ],
+ "seats": [
+  {
+   "seat": "goal",
+   "name": "Owner's goal",
+   "weight": 2,
+   "scores": {
+    "A": 4,
+    "B": 7,
+    "C": 3
+   },
+   "ruin": "none",
+   "stance": "B: two README statements about the owner's name and approval wording fail on an installed guard; small fixes.",
+   "fixes": [
+    "BLOCKING: reordered owner name and partial name in email",
+    "BLOCKING: zero-width, hyphenated and spaced approval words",
+    "BLOCKING: decision in the owner's name without a listed word, or name free-worded approval as a known limit",
+    "clearer refusal line for owner-name user.name"
+   ]
+  },
+  {
+   "seat": "breaker",
+   "name": "Breaker",
+   "weight": 3,
+   "scores": {
+    "A": 3,
+    "B": 8,
+    "C": 4
+   },
+   "ruin": "possible",
+   "stance": "B: 69 of 75 hostile inputs refused, all data, harness and push routes held; the 6 that got through record approval in text, the worst with a zero-width space.",
+   "fixes": [
+    "BLOCKING: drop Unicode format characters before the approval check",
+    "BLOCKING: join letters split by dots, hyphens or spaces",
+    "shipit and okay to merge; say the word list covers common forms only"
+   ]
+  },
+  {
+   "seat": "claims",
+   "name": "Claims officer",
+   "weight": 1,
+   "scores": {
+    "A": 3,
+    "B": 8,
+    "C": 5
+   },
+   "ruin": "none",
+   "stance": "B: counts match; four statements are false on an installed copy: global options, restore with the harness committed, mv out of the inbox, reset with --.",
+   "fixes": [
+    "BLOCKING: global options",
+    "BLOCKING: restore with the harness committed; rerun the record with the harness committed",
+    "BLOCKING: plain mv out of the inbox",
+    "BLOCKING: reset <rev> --",
+    "gh pr create -f",
+    "record the passing approval phrases"
+   ]
+  },
+  {
+   "seat": "guardian",
+   "name": "Guardian",
+   "weight": 3,
+   "scores": {
+    "A": 2,
+    "B": 7,
+    "C": 5
+   },
+   "ruin": "possible",
+   "stance": "B: gh auth status -t prints the owner's token, git fetch . feat:main moves main, reset <rev> -- moves HEAD, other credential files and environment dumps are readable, owner's-name wording passes.",
+   "fixes": [
+    "BLOCKING: gh auth status -t",
+    "BLOCKING: fetch refspecs and fetch .",
+    "BLOCKING: reset to HEAD only",
+    "BLOCKING: .netrc, .npmrc, .pypirc, .docker, .kube, gh hosts",
+    "BLOCKING: environment dumps",
+    "BLOCKING: owner name in message text",
+    "git config --list"
+   ]
+  }
+ ],
+ "scored": "2026-11-08T08:41:30+0800",
+ "inputs": {
+  "brief.json": "2acef2076e51d900f3552f7f6c7939c56521bc5f68d040f17ab197b00ea66f09",
+  "brief.md": "6d3a99b662f5a810ab330dc18ff8887a46b9bf9e3497ece24a2ca8fda025d200",
+  "guard-cases.md": "ab9c676c23784ec5999f5282ea2fbf71370fcfda966b94305b3fbf426dec2725",
+  "round-1.json": "80ef42b7caf6a7f200e81e03a330e143d2b2e7d1e4a1007f8c9495a83e982616",
+  "verdict.md": "5f7092251c5facdfe44218d9538606f6701a851b36dbae428c9e259ea2234c2a"
+ }
+}

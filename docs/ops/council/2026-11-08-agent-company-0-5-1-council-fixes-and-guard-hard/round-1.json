@@ -1,0 +1,84 @@
+[
+ {
+  "seat": "goal",
+  "scores": {
+   "A": 5,
+   "B": 8,
+   "C": 3
+  },
+  "stance": "B: covers the 0.5.0 fix list, but the repo-wide claims check still exits 1 on the 0.5.0 brief, and the owner asked for a clean seal.",
+  "ruin": "none",
+  "one_way": false,
+  "confidence": 4,
+  "pillar": 8,
+  "fixes": [
+   "BLOCKING: claims exits 0 on the whole repo",
+   "BLOCKING: a test for claims over a repo with a council folder",
+   "seal states or runs the repo-wide check"
+  ]
+ },
+ {
+  "seat": "breaker",
+  "scores": {
+   "A": 1,
+   "B": 6,
+   "C": 4
+  },
+  "stance": "B: 24 of 27 hostile commands got past the 0.5.1 guard, including a settings rewrite through a glob and real data read through variables, braces, moves and git.",
+  "ruin": "possible",
+  "one_way": false,
+  "confidence": 4,
+  "pillar": 6,
+  "fixes": [
+   "BLOCKING: globs checked against harness and .git",
+   "BLOCKING: refuse shell expansion in paths; check VAR=value",
+   "BLOCKING: no git exemption for harness paths",
+   "BLOCKING: refuse moving or deleting parents of harness or real data",
+   "BLOCKING: curl --data-urlencode @ and -K",
+   "BLOCKING: git rebase -x, bisect run, --upload-pack, grep -O; find -exec, awk system",
+   "git branch -f on protected names; case-insensitive protected names",
+   "tests for all 24"
+  ]
+ },
+ {
+  "seat": "claims",
+  "scores": {
+   "A": 3,
+   "B": 8,
+   "C": 4
+  },
+  "stance": "B: counts match, but four statements are not backed: the repo-wide claims check, 'every spelling' of uploads, seal accepting edits after scoring, and owner switches that don't exist.",
+  "ruin": "none",
+  "one_way": false,
+  "confidence": 4,
+  "pillar": 8,
+  "fixes": [
+   "BLOCKING: claims exits 0 repo-wide, with a test",
+   "BLOCKING: list tested upload spellings instead of 'every spelling'",
+   "BLOCKING: seal refuses a hand-edited verdict.md",
+   "hash-based change check",
+   "council gate switches in the inbox README"
+  ]
+ },
+ {
+  "seat": "guardian",
+  "scores": {
+   "A": 2,
+   "B": 7,
+   "C": 4
+  },
+  "stance": "B: 'cd data && cat real/r.csv' still reaches real data because relative paths resolve from the project root; real data can be committed and read back through git; the harness folder can be moved or deleted.",
+  "ruin": "possible",
+  "one_way": false,
+  "confidence": 4,
+  "pillar": 6,
+  "fixes": [
+   "BLOCKING: resolve paths from the call's folder; refuse cd chained with reads",
+   "BLOCKING: keep real data out of git (.gitignore, add -f, show/grep/archive)",
+   "BLOCKING: protect parent folders of the harness and ~/.claude settings",
+   "curl -K, mv and diff on real-data folders",
+   "gh posts that claim approval",
+   "gh api -XGET crash"
+  ]
+ }
+]

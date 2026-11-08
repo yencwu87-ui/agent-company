@@ -1,0 +1,82 @@
+[
+ {
+  "seat": "goal",
+  "scores": {
+   "A": 4,
+   "B": 7,
+   "C": 3
+  },
+  "stance": "B: two README statements about the owner's name and approval wording fail on an installed guard; small fixes.",
+  "ruin": "none",
+  "one_way": false,
+  "confidence": 4,
+  "pillar": 7,
+  "fixes": [
+   "BLOCKING: reordered owner name and partial name in email",
+   "BLOCKING: zero-width, hyphenated and spaced approval words",
+   "BLOCKING: decision in the owner's name without a listed word, or name free-worded approval as a known limit",
+   "clearer refusal line for owner-name user.name"
+  ]
+ },
+ {
+  "seat": "breaker",
+  "scores": {
+   "A": 3,
+   "B": 8,
+   "C": 4
+  },
+  "stance": "B: 69 of 75 hostile inputs refused, all data, harness and push routes held; the 6 that got through record approval in text, the worst with a zero-width space.",
+  "ruin": "possible",
+  "one_way": false,
+  "confidence": 4,
+  "pillar": 6,
+  "fixes": [
+   "BLOCKING: drop Unicode format characters before the approval check",
+   "BLOCKING: join letters split by dots, hyphens or spaces",
+   "shipit and okay to merge; say the word list covers common forms only"
+  ]
+ },
+ {
+  "seat": "claims",
+  "scores": {
+   "A": 3,
+   "B": 8,
+   "C": 5
+  },
+  "stance": "B: counts match; four statements are false on an installed copy: global options, restore with the harness committed, mv out of the inbox, reset with --.",
+  "ruin": "none",
+  "one_way": false,
+  "confidence": 4,
+  "pillar": 7,
+  "fixes": [
+   "BLOCKING: global options",
+   "BLOCKING: restore with the harness committed; rerun the record with the harness committed",
+   "BLOCKING: plain mv out of the inbox",
+   "BLOCKING: reset <rev> --",
+   "gh pr create -f",
+   "record the passing approval phrases"
+  ]
+ },
+ {
+  "seat": "guardian",
+  "scores": {
+   "A": 2,
+   "B": 7,
+   "C": 5
+  },
+  "stance": "B: gh auth status -t prints the owner's token, git fetch . feat:main moves main, reset <rev> -- moves HEAD, other credential files and environment dumps are readable, owner's-name wording passes.",
+  "ruin": "possible",
+  "one_way": false,
+  "confidence": 4,
+  "pillar": 4,
+  "fixes": [
+   "BLOCKING: gh auth status -t",
+   "BLOCKING: fetch refspecs and fetch .",
+   "BLOCKING: reset to HEAD only",
+   "BLOCKING: .netrc, .npmrc, .pypirc, .docker, .kube, gh hosts",
+   "BLOCKING: environment dumps",
+   "BLOCKING: owner name in message text",
+   "git config --list"
+  ]
+ }
+]
