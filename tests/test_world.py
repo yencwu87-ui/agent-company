@@ -67,6 +67,12 @@ class WorldState(unittest.TestCase):
         (self.ops / "outbox" / "STATUS.md").write_text("# Status\n\nTime: 2026-11-20 12:10 SGT (checked against the remote)\n", encoding="utf-8")
         self.assertEqual(self.stations()["run"]["state"], "done")
 
+    def test_first_run_guide_does_not_call_the_template_status_a_started_coordinator(self):
+        steps = {s["name"]: s["done"] for s in ac.stage(self.repo)["steps"]}
+        self.assertFalse(steps["Start the coordinator"], "a new project has no coordinator yet")
+        (self.ops / "outbox" / "STATUS.md").write_text("# Status\n\nTime: 2026-11-20 12:10 SGT\n", encoding="utf-8")
+        self.assertTrue({s["name"]: s["done"] for s in ac.stage(self.repo)["steps"]}["Start the coordinator"])
+
     def test_kill_switch_file_is_reported_and_stops_the_line(self):
         (self.repo / ".harness").mkdir()
         (self.repo / ".harness" / "KILL").write_text(json.dumps({"by": "Owner", "reason": "drill", "ts": "2026-11-20T04:00:00Z"}))
@@ -126,6 +132,9 @@ class WorldServer(unittest.TestCase):
         for bad in ("/vendor/three/../../agent_company.py", "/vendor/three/%2e%2e/%2e%2e/agent_company.py",
                     "/vendor/../agent_company.py", "/vendor/three/nope.js", "/vendor/three/", "/vendor/three/LICENSE/../../../SKILL.md"):
             self.assertEqual(self.code(bad), 404, bad)
+
+    def test_browser_icon_request_is_answered_quietly(self):
+        self.assertEqual(self.code("/favicon.ico"), 204)
 
     def test_world_state_needs_the_token(self):
         self.assertEqual(self.code("/api/world"), 403)
