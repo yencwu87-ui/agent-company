@@ -206,7 +206,7 @@ function panels(){
  stamp();
  const n=$('next');n.textContent='';n.className=W.kill.on?'kill':nx?'':'all';
  const p=el('p');
- if(W.kill.on){n.append(el('span','n','!'));p.append(el('b','','Agents are stopped'),'By '+W.kill.by+': '+W.kill.reason+'. Only a person lifts it, from the terminal.')}
+ if(W.kill.on){n.append(el('span','n','!'));p.append(el('b','','Agents are stopped'),'By '+W.kill.by+': '+W.kill.reason+'. A person lifts it from the terminal, and that is recorded.')}
  else if(nx){n.append(el('span','n',String(W.stations.indexOf(nx)+1)));p.append(el('b','','Next: '+nx.step),nx.how)}
  else{n.append(el('span','n','✓'));p.append(el('b','','Every step has evidence'),'Keep sealing proof for each merged change.')}
  n.append(p);if(nx&&!W.kill.on&&nx.action)n.append(actionBtn(nx));
@@ -220,7 +220,7 @@ function actionBtn(s){const A=ACTIONS[s.action]||ACTIONS['install-harness'];cons
 function kit(){return W.kit||{golden:{installed:false},recovery:{drills:0,last:null}}}
 function kitRows(c){const G=kit().golden;c.append(el('div','note','Harness Marketplace kit (read only)'));
  if(!G.installed){c.append(row('Golden image','not in this repo'));return}
- c.append(row('Golden image',G.version+(G.sha?' · '+G.sha:'')),row('Repo against the image',G.result==='MATCH'?'match ('+G.checked+' checks)':G.result==='DRIFT'?'drift: '+G.drift.length+' of '+G.checked:'image altered',G.result==='MATCH'?'ok':'bad'));
+ c.append(row('Golden image',G.version+(G.sha?' · '+G.sha:'')),row('Image pin',G.pinned?'the hash in the CI workflow':'not pinned: compared with the image file in this repo only',G.pinned?'ok':''),row('Repo against the image',G.result==='MATCH'?'match ('+G.checked+' checks)':G.result==='DRIFT'?'drift: '+G.drift.length+' of '+G.checked:'image altered',G.result==='MATCH'?'ok':'bad'));
  G.drift.slice(0,6).forEach(d=>c.append(row('',d,'bad')));if(G.drift.length>6)c.append(row('','and '+(G.drift.length-6)+' more','bad'));
  c.append(el('div','note','A match means the kit’s standard files are in place. It does not mean an agent behaves well. The screen cannot change the image.'))}
 function row(k,v,cls){const r=el('div','row');r.append(el('span','',k),el('b',cls||'',v));return r}
@@ -228,8 +228,8 @@ function renderCard(){
  const c=$('card');c.textContent='';const x=el('button','x','×');x.setAttribute('aria-label','Close');x.onclick=hideCard;c.append(x);
  if(selected==='kill'){c.append(el('h3','','Kill switch'),el('div','state '+(W.kill.on?'kill':'done'),W.kill.on?'On: agents stopped':'Off'));
   if(W.kill.on)c.append(row('Set by',W.kill.by),row('Reason',W.kill.reason),row('When',W.kill.ts||'?'));
-  {const R=kit().recovery,L=R.last;c.append(row('Last recovery drill',L?L.result+(L.seconds!=null?' in '+L.seconds+' s':'')+' · '+(L.ts||'').slice(0,10):'none on record',L?(L.result==='RECOVERED'?'ok':'bad'):''));if(L)c.append(row('Drills on record',String(R.drills)),row('Run by',L.by))}
-  c.append(el('div','note','This tower shows the kill switch (the file .harness/KILL). While it is on, the background runner will not start, and a running one is ended at once. The commands that set and lift it come with the Harness Marketplace runtime pack, which is not released yet. Only a named person lifts it, from the terminal: this screen has no button for it.'));return}
+  {const R=kit().recovery,L=R.last;if(R.untrusted)c.append(row('Last recovery drill','not shown: '+R.untrusted,'bad'));else c.append(row('Last recovery drill',L?L.result+(L.seconds!=null?' in '+L.seconds+' s':'')+' · '+(L.ts||'').slice(0,10):'none on record',L?(L.result==='RECOVERED'?'ok':'bad'):''));if(L)c.append(row('Drills on record',String(R.drills)),row('Run by',L.by))}
+  c.append(el('div','note','This tower shows the kill switch (the file .harness/KILL). While it is on, the background runner will not start, and a running one is ended at once. The commands that set and lift it come with the Harness Marketplace runtime pack, which is not released yet. A person lifts it from the terminal with the runtime pack, and that is recorded. Deleting the file by hand also lifts it, with no record.'));return}
  const s=st(selected),i=W.stations.indexOf(s);c.append(el('h3','',(i+1)+'. '+s.name),el('div','state '+s.state,s.state==='done'?'Done':s.state==='next'?'Next step':'Locked until step '+(W.stations.findIndex(q=>q.state==='next')+1)+' is done'));
  if(s.id==='setup')c.append(row('Project',W.repo),row('Agent Company',W.version),row('Orders folder','docs/ops/'));
  if(s.id==='team'){if(!W.team.length)c.append(row('Agents','none yet','bad'));W.team.forEach(m=>c.append(row(m.name,m.role+' · '+m.origin)))}
