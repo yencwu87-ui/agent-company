@@ -186,3 +186,89 @@ class WorldCommand(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class WorldKit(unittest.TestCase):
+    """The World reads a Harness Marketplace kit (golden image, recovery drills) if the repo carries one. Read-only."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.repo = Path(self.tmp.name)
+        subprocess.run(["git", "init", "-q", "-b", "main", str(self.repo)], check=True)
+        quiet(ac.cmd_init, str(self.repo))
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def kit(self):
+        return ac.world_state(self.repo)["kit"]
+
+    def scaffold(self):
+        """A repo as harness-init leaves it, with an image built the way tools/golden.py builds one."""
+        import hashlib
+        r = self.repo
+        locked = {"scripts/harness.py": b"# harness\n", "scripts/runtime.py": b"# runtime\n", "progress/clean-state.md": b"# clean\n"}
+        for rel, data in locked.items():
+            (r / rel).parent.mkdir(parents=True, exist_ok=True); (r / rel).write_bytes(data)
+        for rel in ["progress/feature_list.json", "DECISIONS.md", "CLAUDE.md", ".harness/ledger.jsonl"]:
+            (r / rel).parent.mkdir(parents=True, exist_ok=True); (r / rel).write_text("x\n", encoding="utf-8")
+        deny = ["Bash(git push *)", "Read(./.env)"]
+        gate = "python3 scripts/runtime.py gate"
+        (r / ".claude").mkdir(exist_ok=True)
+        (r / ".claude/settings.json").write_text(json.dumps({"permissions": {"deny": deny + ["Bash(rm -rf *)"]}, "hooks": {
+            "PreToolUse": [{"matcher": "*", "hooks": [{"type": "command", "command": gate}]}]}}), encoding="utf-8")
+        img = {"format": 1, "name": "harness-marketplace golden image", "version": "1.5.0",
+               "locked": {k: hashlib.sha256(v).hexdigest() for k, v in sorted(locked.items())},
+               "required": [["progress/feature_list.json"], ["DECISIONS.md"], ["CLAUDE.md", "AGENTS.md"], [".claude/settings.json"],
+                            [".harness/ledger.jsonl"]],
+               "deny": sorted(deny), "hooks": [gate]}
+        img["image_sha"] = ac._golden_image_hash(img)
+        (r / "scripts/golden-image.json").write_text(json.dumps(img, indent=2) + "\n", encoding="utf-8")
+        return img
+
+    def test_a_repo_without_the_kit_says_so(self):
+        k = self.kit()
+        self.assertEqual(k["golden"], {"installed": False})
+        self.assertEqual(k["recovery"], {"drills": 0, "last": None})
+
+    def test_the_real_images_own_hash_is_reproduced(self):
+        # an image built by the kit's own tools/golden.py (1.5.0): the World must hash it the same way, or it would cry ALTERED
+        img = json.loads((Path(__file__).parent / "fixtures" / "golden-image-1.5.0.json").read_text(encoding="utf-8"))
+        self.assertEqual(ac._golden_image_hash(img), img["image_sha"])
+
+    def test_match_then_drift_names_what_drifted(self):
+        img = self.scaffold()
+        g = self.kit()["golden"]
+        self.assertEqual((g["installed"], g["result"], g["version"], g["drift"]), (True, "MATCH", "1.5.0", []))
+        self.assertEqual(g["sha"], img["image_sha"][:12])
+        self.assertEqual(g["checked"], 3 + 5 + 2 + 1)                  # locked, required, deny rules, hooks
+        (self.repo / "scripts/harness.py").write_text("# harness, loosened\n", encoding="utf-8")
+        s = json.loads((self.repo / ".claude/settings.json").read_text(encoding="utf-8"))
+        s["permissions"]["deny"].remove("Bash(git push *)"); s["hooks"] = {}
+        (self.repo / ".claude/settings.json").write_text(json.dumps(s), encoding="utf-8")
+        (self.repo / "DECISIONS.md").unlink(); (self.repo / "scripts/runtime.py").unlink()
+        g = self.kit()["golden"]
+        self.assertEqual(g["result"], "DRIFT")
+        self.assertEqual(sorted(g["drift"]), sorted(["DRIFT scripts/harness.py", "MISSING scripts/runtime.py", "MISSING DECISIONS.md",
+                                                     "DRIFT deny Bash(git push *)", "DRIFT hook python3 scripts/runtime.py gate"]))
+
+    def test_an_edited_image_is_not_trusted(self):
+        img = self.scaffold()
+        img["deny"] = []                                               # someone loosens the standard and keeps the old hash
+        (self.repo / "scripts/golden-image.json").write_text(json.dumps(img), encoding="utf-8")
+        g = self.kit()["golden"]
+        self.assertEqual((g["result"], g["checked"]), ("ALTERED", 0))
+        (self.repo / "scripts/golden-image.json").write_text("{not json", encoding="utf-8")
+        self.assertEqual(self.kit()["golden"]["result"], "ALTERED")
+        img = self.scaffold(); img["locked"]["../outside.txt"] = "0" * 64; img["image_sha"] = ac._golden_image_hash(img)
+        (self.repo / "scripts/golden-image.json").write_text(json.dumps(img), encoding="utf-8")
+        self.assertIn("DRIFT ../outside.txt", self.kit()["golden"]["drift"])   # a path outside the repo is never read
+
+    def test_recovery_shows_the_last_drill_in_the_kits_ledger(self):
+        self.scaffold()
+        lines = [{"seq": 1, "ts": "2026-11-20T08:00:00Z", "type": "kill", "by": "Owner", "reason": "test"},
+                 {"seq": 2, "ts": "2026-11-20T08:05:00Z", "type": "drill", "by": "Owner", "result": "FAILED", "seconds": 9.5, "checks_run": 2},
+                 {"seq": 3, "ts": "2026-11-20T08:20:00Z", "type": "drill", "by": "Owner", "result": "RECOVERED", "seconds": 3.25, "checks_run": 2}]
+        (self.repo / ".harness/ledger.jsonl").write_text("\n".join(json.dumps(x) for x in lines) + "\nnot json\n", encoding="utf-8")
+        self.assertEqual(self.kit()["recovery"], {"drills": 2, "last": {"result": "RECOVERED", "seconds": 3.25, "ts": "2026-11-20T08:20:00Z",
+                                                                          "by": "Owner", "checks_run": 2}})

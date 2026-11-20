@@ -1,0 +1,60 @@
+{
+  "format": 1,
+  "name": "harness-marketplace golden image",
+  "version": "1.5.0",
+  "locked": {
+    "progress/clean-state.md": "0f113d360acb52f6106962c3354e674e610eb06d83c3a53d60b2098e85694e9d",
+    "scripts/check_feature_list.py": "76324c2cdeb343d28ff55872924bb65569d6105e92b464009c6d1c5dce2a746d",
+    "scripts/golden.py": "f38e072e2478c533edefd3ef166004471026d0cffbaf8abbc41af28b45a96042",
+    "scripts/harness.py": "05f83d441ae3ea67c902efc6cfdefa54d49ad39b44794230c5db63cc325102bb",
+    "scripts/runtime.py": "f611a1895fc4162e0b1ae788fdabf58519bda28bfe9545bc71b235b47261d775"
+  },
+  "required": [
+    [
+      "progress/feature_list.json"
+    ],
+    [
+      "progress/progress.md"
+    ],
+    [
+      "DECISIONS.md"
+    ],
+    [
+      "init.sh"
+    ],
+    [
+      "CLAUDE.md",
+      "AGENTS.md"
+    ],
+    [
+      ".claude/settings.json"
+    ],
+    [
+      ".harness/ledger.jsonl"
+    ]
+  ],
+  "deny": [
+    "Bash(cat *.env*)",
+    "Bash(git checkout -- *)",
+    "Bash(git clean *)",
+    "Bash(git push *)",
+    "Bash(git push)",
+    "Bash(git reset --hard *)",
+    "Bash(rm -rf *)",
+    "Edit(./.env)",
+    "Edit(./.env.*)",
+    "Read(./**/*.key)",
+    "Read(./**/*.pem)",
+    "Read(./**/.env)",
+    "Read(./**/.env.*)",
+    "Read(./.env)",
+    "Read(./.env.*)",
+    "Read(~/.aws/**)",
+    "Read(~/.config/gcloud/**)",
+    "Read(~/.ssh/**)"
+  ],
+  "hooks": [
+    "python3 scripts/runtime.py gate"
+  ],
+  "image_sha": "5a124ebd42b5f6d93e85daaeb34a8535dcd6a10eb48bdc445d4a6c71cbf669a2"
+}
