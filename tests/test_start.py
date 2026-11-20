@@ -36,7 +36,7 @@ class Start(unittest.TestCase):
         self.assertEqual(rc, 0)
         self.assertTrue((proj / ".git").exists()); self.assertTrue((proj / "docs/ops/inbox/README.md").exists())
         self.assertEqual(ac._git(proj, "rev-parse", "--abbrev-ref", "HEAD"), "main")
-        ui.assert_called_once(); self.assertEqual(ui.call_args[0][3], "/guild")
+        ui.assert_called_once(); self.assertEqual(ui.call_args[0][3], "/world")  # the 3D world is the start screen (owner, 20 Nov 2026)
         with mock.patch.object(ac, "cmd_ui", return_value=0):
             rc2, _ = quiet(ac.cmd_launch, str(proj), 8765, False)      # running it again is harmless
         self.assertEqual(rc2, 0)
