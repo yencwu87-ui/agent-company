@@ -963,7 +963,7 @@ def cmd_launch(repo: str | None, port: int, open_browser: bool) -> int:
         with contextlib.redirect_stdout(io.StringIO()):
             cmd_init(str(root))
         print("  ✓ Agent Company set up in docs/ops/")
-    print(f"\nOpening the Guild. Your project lives in: {root}\nTo stop, close this window or press Ctrl+C.\n")
+    print(f"\nOpening the World. Your project lives in: {root}\nTo stop, close this window or press Ctrl+C.\n")
     return cmd_ui(str(root), port, open_browser, "/world")
 
 

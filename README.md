@@ -17,6 +17,7 @@ Both write real files into your repository, and those files are what your agents
 | | |
 |---|---|
 | [**Feature film**](docs/media/agent-company-feature-film.mp4) (77 s) | Told with three anatomy figures, plus short live demos of the real game: the Forge fitting the harness, deploying on the map (a refused drop, the green ring, the horn), the dispatch line, proving a quest and levelling up, trust credits and containment, and the worlds on a laptop and a phone. Captions in [`.srt`](docs/media/agent-company-feature-film.srt). |
+| [**The World, start to finish**](docs/media/world-demo.mp4) (2 min 13 s) | A recorded run of the live World against a real project folder: launch, team, harness, orders, coordinator, proof. Captions say where the recording stands in for an AI agent. Guide: [docs/WORLD-GUIDE.md](docs/WORLD-GUIDE.md). |
 | [**Fig 1: the Forge**](docs/media/forge-anatomy.html) | Interactive isometric figure: an agent rides past six fitting stations, each lowering one harness piece, and the deploy gate lifts only at six of six. Click to skip a piece and watch the gate refuse. |
 | [**Fig 2: the dispatch line**](docs/media/agent-company-anatomy.html) | Interactive isometric figure: a mission rides one rail from the inbox through the builder's press, the challenger's probe and the evaluator's gauge to the owner's desk. Click to make the owner step away. |
 | [**Fig 3: trust credits**](docs/media/trust-credits-anatomy.html) | Interactive isometric figure: the proof press and OpenProof seal, the outcome rack, the credit sight-glass, the credibility gauge and the containment cage. Click to jump to an escaped defect. |
@@ -117,7 +118,9 @@ Rules the screen keeps:
 - **The screen can install the harness, but it cannot approve, merge or lift the kill switch.** Those stay with a named person in the terminal, so an agent that reaches the screen cannot release itself.
 - **Nothing loads from the internet.** three.js (MIT) ships in `ui/vendor/three`.
 
-Teams and orders are still written on the Command map; the World links to it. The Guild stays available (`agent_company.py guild`) until the World can do everything it does.
+Teams and orders are written on the Command map; the World links to it and the Command map links back.
+
+**Step-by-step guide, with a recorded run and the checks behind it:** [docs/WORLD-GUIDE.md](docs/WORLD-GUIDE.md). The Guild stays available (`agent_company.py guild`) until the World can do everything it does.
 
 ## Why a game?
 
