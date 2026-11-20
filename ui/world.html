@@ -218,7 +218,7 @@ function renderCard(){
  const c=$('card');c.textContent='';const x=el('button','x','×');x.setAttribute('aria-label','Close');x.onclick=hideCard;c.append(x);
  if(selected==='kill'){c.append(el('h3','','Kill switch'),el('div','state '+(W.kill.on?'kill':'done'),W.kill.on?'On: agents stopped':'Off'));
   if(W.kill.on)c.append(row('Set by',W.kill.by),row('Reason',W.kill.reason),row('When',W.kill.ts||'?'));
-  c.append(el('div','note','Stop: python3 scripts/runtime.py kill --by NAME --reason TEXT. Only a named person lifts it, from the terminal, so an agent that reaches this screen cannot release itself.'));return}
+  c.append(el('div','note','This tower shows the kill switch from the Harness Marketplace runtime pack (the file .harness/KILL). The pack is not released yet, so on most projects this stays off. When it is on, only a named person lifts it, from the terminal: this screen has no button for it.'));return}
  const s=st(selected),i=W.stations.indexOf(s);c.append(el('h3','',(i+1)+'. '+s.name),el('div','state '+s.state,s.state==='done'?'Done':s.state==='next'?'Next step':'Locked until step '+(W.stations.findIndex(q=>q.state==='next')+1)+' is done'));
  if(s.id==='setup')c.append(row('Project',W.repo),row('Agent Company',W.version),row('Orders folder','docs/ops/'));
  if(s.id==='team'){if(!W.team.length)c.append(row('Agents','none yet','bad'));W.team.forEach(m=>c.append(row(m.name,m.role+' · '+m.origin)))}

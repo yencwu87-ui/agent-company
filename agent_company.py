@@ -801,6 +801,29 @@ def doctor(repo: str | Path | None = None) -> list[dict]:
     return out
 
 
+PLAN_ROLE = {"owner": "Owner", "chief": "Chief of staff", "coord": "Coordinator", "builder": "Builder", "evaluator": "Evaluator",
+             "challenger": "Challenger", "claims": "Claims officer", "watch": "Watch"}
+
+
+def team_of(ops: Path) -> list[dict]:
+    """The team as the repo records it: the Guild's characters if there are any, otherwise the units placed on the Command map."""
+    try:
+        heroes = json.loads((ops / "guild" / "guild.json").read_text(encoding="utf-8")).get("heroes", {}).values()
+        team = [{"name": str(h.get("name", ""))[:40], "role": CLASS_ROLE.get(h.get("cls"), str(h.get("cls", ""))[:30]),
+                 "origin": str(h.get("origin", ""))[:30], "level": h.get("lv", 1)} for h in heroes if isinstance(h, dict)]
+        if team:
+            return team[:24]
+    except (OSError, ValueError, AttributeError):
+        pass
+    try:
+        plan = json.loads((ops / "plan.json").read_text(encoding="utf-8"))
+        placed, units = plan.get("place", {}), plan.get("units", {})
+        return [{"name": PLAN_ROLE.get(u.get("role"), str(u.get("role", ""))[:30]), "role": PLAN_ROLE.get(u.get("role"), str(u.get("role", ""))[:30]),
+                 "origin": str(u.get("tool", ""))[:30], "level": 1} for uid, u in units.items() if uid in placed and isinstance(u, dict)][:24]
+    except (OSError, ValueError, AttributeError):
+        return []
+
+
 def coordinator_started(ops: Path) -> bool:
     """True once STATUS.md carries a real time. The template's "Time: <date time zone>" placeholder is not a start."""
     p = ops / "outbox" / "STATUS.md"
@@ -813,7 +836,7 @@ def stage(repo: str | Path) -> dict:
     ops = ops_dir(root)
     steps = [
         ("Set up", (ops / "inbox").is_dir(), "Agent Company is set up in this project."),
-        ("Forge a team", (ops / "guild" / "guild.json").exists(), "Forge characters, or load the demo guild, then press Write to my repo on the War map."),
+        ("Forge a team", (ops / "guild" / "guild.json").exists() or bool(team_of(ops)), "Forge characters, or load the demo guild, then press Write to my repo on the War map."),
         ("Install the harness", harness_status(root)["fitted"] == 6, "In the Forge's harness step, press Install the harness in this repo."),
         ("Write quests", any((ops / "inbox").glob("[0-9][0-9][0-9]_*.md")) if (ops / "inbox").is_dir() else False, "Add a quest on the War map and sound the horn."),
         ("Start the coordinator", coordinator_started(ops),
@@ -848,13 +871,7 @@ def world_state(repo: str | Path) -> dict:
         if sid == "harness":
             st["action"] = "install-harness"
         stations.append(st)
-    team = []
-    try:
-        heroes = json.loads((ops / "guild" / "guild.json").read_text(encoding="utf-8")).get("heroes", {}).values()
-        team = [{"name": str(h.get("name", ""))[:40], "role": CLASS_ROLE.get(h.get("cls"), str(h.get("cls", ""))[:30]),
-                 "origin": str(h.get("origin", ""))[:30], "level": h.get("lv", 1)} for h in heroes if isinstance(h, dict)][:24]
-    except (OSError, ValueError, AttributeError):
-        pass
+    team = team_of(ops)
     recs = [verify_record(root, l["id"]) for l in _ledger(root) if l.get("id")][-50:]
     kill = {"on": False}
     kp = root / ".harness" / "KILL"

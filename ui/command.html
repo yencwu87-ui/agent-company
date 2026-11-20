@@ -96,6 +96,7 @@ textarea{min-height:52px;resize:vertical}
   <div class="bar">
     <button id="btn-load">Load OpenProof example</button>
     <button id="btn-clear">Clear field</button>
+    <button id="btn-world" hidden>Back to the World</button>
     <button id="btn-deploy" class="primary">Deploy</button>
   </div>
 </header>
@@ -322,6 +323,7 @@ $("#btn-clear").onclick=()=>{S={units:{},place:{},missions:[],seq:1,mseq:1};$("#
 /* ------- local mode: served by agent_company.py ui on 127.0.0.1 ------- */
 const TOKEN=new URLSearchParams(location.search).get("token");
 const LOCAL=!!TOKEN && /^(127\.0\.0\.1|localhost)$/.test(location.hostname);
+if(LOCAL){$("#btn-world").hidden=false;$("#btn-world").onclick=()=>{location.href="/world?token="+encodeURIComponent(TOKEN)}}
 async function api(path,body){const r=await fetch(path+(path.includes("?")?"&":"?")+"token="+encodeURIComponent(TOKEN),body?{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)}:{});if(!r.ok)throw new Error(await r.text());return r.json()}
 if(LOCAL){
   $("#btn-write").hidden=false;
