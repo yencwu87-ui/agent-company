@@ -1223,7 +1223,7 @@ def cmd_import_agents(repo: str, source: str, origin: str) -> int:
     g.parent.mkdir(parents=True, exist_ok=True)
     g.write_text(json.dumps(guild, indent=1), encoding="utf-8")
     print(f"imported {len(added)} agent(s) into {g}:\n  " + "\n  ".join(added[:60]) + ("\n  …" if len(added) > 60 else ""))
-    print("Open the Guild (agent_company.py guild) to place them; every imported character wears the full harness and starts at level 1.")
+    print("Open the World (agent_company.py world) to see them in the Team quarters. Every imported agent wears the full harness and starts at level 1; Guild mode (agent_company.py guild) places them on its map.")
     return 0
 
 # ---------------------------------------------------------------- ui (local server, 127.0.0.1 only)
@@ -1524,10 +1524,10 @@ def main(argv=None) -> int:
     s = sub.add_parser("_supervise"); s.add_argument("repo"); s.add_argument("tool"); s.add_argument("argv")
     s = sub.add_parser("card"); s.add_argument("repo", nargs="?", default="."); s.add_argument("agent", nargs="?"); s.add_argument("--seal", action="store_true")
     s = sub.add_parser("trust"); s.add_argument("repo", nargs="?", default="."); s.add_argument("--json", action="store_true"); s.add_argument("--seal", action="store_true")
-    s = sub.add_parser("launch", help="the zero-knowledge start: folder, git, setup and the Guild in one step"); s.add_argument("repo", nargs="?"); s.add_argument("--port", type=int, default=8765); s.add_argument("--no-browser", action="store_true")
+    s = sub.add_parser("launch", help="the zero-knowledge start: folder, git, setup and the World in one step"); s.add_argument("repo", nargs="?"); s.add_argument("--port", type=int, default=8765); s.add_argument("--no-browser", action="store_true")
     s = sub.add_parser("doctor"); s.add_argument("repo", nargs="?")
     s = sub.add_parser("smoke"); s.add_argument("repo", nargs="?", default=".")
-    s = sub.add_parser("import-agents", help="turn .claude/agents/*.md (e.g. Claude Code Game Studios) into Guild characters")
+    s = sub.add_parser("import-agents", help="turn .claude/agents/*.md (e.g. Claude Code Game Studios) into team members")
     s.add_argument("source"); s.add_argument("--repo", default="."); s.add_argument("--origin", default="Claude Code")
     s = sub.add_parser("council", help="Review Council: a board of role seats that self-evaluates a decision or finished work")
     s.add_argument("action", choices=["seats", "protocol", "agents", "init", "score", "seal"]); s.add_argument("arg", nargs="?")

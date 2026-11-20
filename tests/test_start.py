@@ -40,6 +40,12 @@ class Start(unittest.TestCase):
         with mock.patch.object(ac, "cmd_ui", return_value=0):
             rc2, _ = quiet(ac.cmd_launch, str(proj), 8765, False)      # running it again is harmless
         self.assertEqual(rc2, 0)
+        # the words a new user reads must name the same screen that opens
+        helptext = subprocess.run([sys.executable, str(Path(ac.__file__)), "--help"], capture_output=True, text=True).stdout
+        self.assertIn("the World in one step", " ".join(helptext.split()))
+        self.assertNotIn("the Guild in one step", " ".join(helptext.split()))
+        demo = (Path(ac.__file__).parent / "demo" / "demo.sh").read_text(encoding="utf-8")
+        self.assertIn('"$AC" world . ', demo); self.assertNotIn('"$AC" guild . ', demo)
 
     def test_doctor_names_the_fix(self):
         proj = self.home / "plain"; proj.mkdir()

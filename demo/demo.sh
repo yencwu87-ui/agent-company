@@ -1,6 +1,6 @@
 #!/bin/sh
 # Agent Company: a live demo on this computer. Builds a small demo repository, seals one evidence record,
-# and opens the Guild on it in your browser. Nothing outside ~/agent-company-demo is changed. Ctrl+C stops it.
+# and opens the World on it in your browser. Nothing outside ~/agent-company-demo is changed. Ctrl+C stops it.
 set -e
 AC="$(cd "$(dirname "$0")/.." && pwd)/agent_company.py"
 DEMO="$HOME/agent-company-demo"
@@ -47,7 +47,7 @@ echo
 echo "== Harness in this repo (install it from the Forge, or: python3 $AC harness $DEMO)"
 python3 "$AC" harness . --check || true
 echo
-echo "== Opening the Guild on $DEMO"
+echo "== Opening the World on $DEMO"
 echo "   Claude opens it in the Claude app's browser; you can also open the address below in any browser."
 HERE_DIR="$(cd "$(dirname "$0")" && pwd)"
-python3 -u "$AC" guild . --no-browser --port 8765 | tee "$HERE_DIR/last-url.txt"
+python3 -u "$AC" world . --no-browser --port 8765 | tee "$HERE_DIR/last-url.txt"
