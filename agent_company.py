@@ -558,18 +558,86 @@ def _allow_from_guild(ops: Path) -> dict:
     return allow
 
 
+_READ_MAX = 5_000_000
+
+
+def _read_inside(root: Path, rel: str, cap: int = _READ_MAX):
+    """Text of a regular file at rel, only if it is really inside the repo (no link out of it) and not oversized. Else None."""
+    try:
+        base = Path(root).resolve()
+        p = (base / rel).resolve()
+        p.relative_to(base)
+        if not p.is_file() or p.stat().st_size > cap:
+            return None
+        return p.read_text(encoding="utf-8")
+    except (OSError, ValueError, RuntimeError):
+        return None
+
+
+def _json_inside(root: Path, rel: str):
+    t = _read_inside(root, rel)
+    if t is None:
+        return None
+    try:
+        return json.loads(t)
+    except ValueError:
+        return None
+
+
+def _claude_settings(root: Path) -> dict:
+    st = _json_inside(root, ".claude/settings.json")
+    return st if isinstance(st, dict) else {}
+
+
+def _hooks_disabled(root: Path) -> bool:
+    """Claude Code runs no hook at all when disableAllHooks is set, in the project settings or the local ones."""
+    for rel in (".claude/settings.json", ".claude/settings.local.json"):
+        st = _json_inside(root, rel)
+        if isinstance(st, dict) and st.get("disableAllHooks"):
+            return True
+    return False
+
+
+def _hook_groups(settings: dict, event: str) -> list:
+    """[(matcher, [command hooks])] for one event, whatever shape the file is in. Only type "command" hooks can run a guard."""
+    hooks = settings.get("hooks") if isinstance(settings, dict) else None
+    groups = hooks.get(event) if isinstance(hooks, dict) else None
+    out = []
+    for g in groups if isinstance(groups, list) else []:
+        if not isinstance(g, dict):
+            continue
+        inner = g.get("hooks")
+        cmds = [h for h in (inner if isinstance(inner, list) else [])
+                if isinstance(h, dict) and isinstance(h.get("command"), str) and h.get("type", "command") == "command"]
+        m = g.get("matcher", "")
+        out.append((m if isinstance(m, str) else "\x00", cmds))
+    return out
+
+
+def _deny_rules(settings: dict) -> list:
+    perms = settings.get("permissions") if isinstance(settings, dict) else None
+    deny = perms.get("deny") if isinstance(perms, dict) else None
+    return [d for d in deny if isinstance(d, str)] if isinstance(deny, list) else []
+
+
+def kill_file(root: Path) -> Path | None:
+    """.harness/KILL in any form (a file with any content, a folder, a link) means stopped. Only its absence means clear."""
+    kp = Path(root) / ".harness" / "KILL"
+    return kp if os.path.lexists(kp) else None
+
+
 def harness_status(repo) -> dict:
     root = Path(repo).resolve()
     hd = ops_dir(root) / "harness"
-    try:
-        st = json.loads((root / ".claude" / "settings.json").read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        st = {}
-    hooks = st.get("hooks", {})
-    pre = [h for e in hooks.get("PreToolUse", []) for h in e.get("hooks", []) if "docs/ops/harness/guard.py" in h.get("command", "") and "--log" not in h.get("command", "")]
-    matchers = " ".join(e.get("matcher", "") for e in hooks.get("PreToolUse", []) if any("docs/ops/harness/guard.py" in h.get("command", "") for h in e.get("hooks", [])))
-    post = [h for e in hooks.get("PostToolUse", []) for h in e.get("hooks", []) if "guard.py\" --log" in h.get("command", "") or "guard.py --log" in h.get("command", "")]
-    deny = st.get("permissions", {}).get("deny", [])
+    st = _claude_settings(root)
+    off = _hooks_disabled(root)                       # with all hooks disabled, nothing below is enforced
+    is_guard = lambda h: "docs/ops/harness/guard.py" in h["command"]
+    is_log = lambda h: "guard.py\" --log" in h["command"] or "guard.py --log" in h["command"]
+    pre_groups = [] if off else _hook_groups(st, "PreToolUse")
+    pre = [h for _, hs in pre_groups for h in hs if is_guard(h) and "--log" not in h["command"]]
+    matchers = " ".join(m for m, hs in pre_groups if any(is_guard(h) for h in hs))
+    post = [] if off else [h for _, hs in _hook_groups(st, "PostToolUse") for h in hs if is_log(h)]
+    deny = _deny_rules(st)
     guard = (hd / "guard.py").exists()
     hooks_dir = _git(root, "rev-parse", "--git-path", "hooks")
     prepush = bool(hooks_dir) and (Path(hooks_dir) if Path(hooks_dir).is_absolute() else root / hooks_dir).joinpath("pre-push").exists() and \
@@ -923,44 +991,38 @@ def _golden_image_hash(img: dict) -> str:
     return hashlib.sha256(json.dumps(body, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()).hexdigest()
 
 
-def _hook_commands(settings: dict) -> list:
-    out = []
-    hooks = settings.get("hooks") if isinstance(settings, dict) else None
-    for groups in (hooks or {}).values() if isinstance(hooks, dict) else []:
-        for g in groups or []:
-            for h in (g.get("hooks", []) if isinstance(g, dict) else []):
-                if isinstance(h, dict) and h.get("command"):
-                    out.append(h["command"])
-    return out
-
-
 def _inside(root: Path, rel: str):
     """The file at rel, only if it stays inside the repo. An image must never make the World read anything else."""
     try:
         p = (root / str(rel)).resolve()
         p.relative_to(root.resolve())
         return p
-    except (OSError, ValueError):
+    except (OSError, ValueError, RuntimeError):
         return None
+
+
+def _gate_hook_ok(settings: dict, cmd: str) -> bool:
+    """The image's hook counts only where it can stop a tool call: a command hook under PreToolUse that matches every tool."""
+    return any(m in ("", "*", ".*") and any(h["command"] == cmd for h in hs) for m, hs in _hook_groups(settings, "PreToolUse"))
 
 
 def golden_status(repo: str | Path) -> dict:
     root = Path(repo)
-    ip = next((root / p for p in GOLDEN_IMAGES if (root / p).is_file()), None)
-    if ip is None:
+    rel = next((p for p in GOLDEN_IMAGES if os.path.lexists(root / p)), None)
+    if rel is None:
         return {"installed": False}
-    base = {"installed": True, "image": str(ip.relative_to(root)), "version": "?", "sha": "", "checked": 0}
-    try:
-        img = json.loads(ip.read_text(encoding="utf-8"))
-        if not isinstance(img, dict):
-            raise ValueError("not an object")
-    except (OSError, ValueError):
-        return {**base, "result": "ALTERED", "drift": ["the golden image file cannot be read as JSON"]}
+    base = {"installed": True, "image": rel, "version": "?", "sha": "", "checked": 0}
+    img = _json_inside(root, rel)
+    if not isinstance(img, dict):
+        return {**base, "result": "ALTERED", "drift": ["the golden image cannot be read as a JSON file inside this repository"]}
     base.update(version=str(img.get("version", "?"))[:20], sha=str(img.get("image_sha", ""))[:12])
     if img.get("image_sha") != _golden_image_hash(img):
         return {**base, "result": "ALTERED", "drift": ["the golden image no longer matches its own hash; restore it from the kit's release"]}
+    locked, required, deny, hooks = img.get("locked"), img.get("required"), img.get("deny"), img.get("hooks")
+    if not (isinstance(locked, dict) and isinstance(required, list) and isinstance(deny, list) and isinstance(hooks, list)) \
+            or not (locked and required and deny and hooks):
+        return {**base, "result": "ALTERED", "drift": ["the golden image lists nothing to check in at least one section; restore it from the kit's release"]}
     drift, checked = [], 0
-    locked = img.get("locked") if isinstance(img.get("locked"), dict) else {}
     for target, want in locked.items():
         checked += 1
         p = _inside(root, target)
@@ -975,47 +1037,38 @@ def golden_status(repo: str | Path) -> dict:
                 same = False
             if not same:
                 drift.append(f"DRIFT {target}")
-    for options in img.get("required") if isinstance(img.get("required"), list) else []:
+    for options in required:
         checked += 1
         options = options if isinstance(options, list) else [options]
         if not any((q := _inside(root, o)) is not None and q.exists() for o in options):
             drift.append("MISSING " + " or ".join(str(o) for o in options))
-    try:
-        sp = root / ".claude" / "settings.json"
-        settings = json.loads(sp.read_text(encoding="utf-8")) if sp.is_file() else {}
-    except (OSError, ValueError):
-        settings = {}
-    perms = settings.get("permissions") if isinstance(settings, dict) else None
-    have_deny = set(perms.get("deny", []) if isinstance(perms, dict) and isinstance(perms.get("deny", []), list) else [])
-    for rule in img.get("deny") if isinstance(img.get("deny"), list) else []:
+    settings = _claude_settings(root)
+    have_deny = set(_deny_rules(settings))
+    for rule in deny:
         checked += 1
-        if rule not in have_deny:
+        if not isinstance(rule, str) or rule not in have_deny:
             drift.append(f"DRIFT deny {rule}")
-    have_hooks = _hook_commands(settings)
-    for cmd in img.get("hooks") if isinstance(img.get("hooks"), list) else []:
+    off = _hooks_disabled(root)
+    for cmd in hooks:
         checked += 1
-        if cmd not in have_hooks:
-            drift.append(f"DRIFT hook {cmd}")
+        if off or not isinstance(cmd, str) or not _gate_hook_ok(settings, cmd):
+            drift.append(f"DRIFT hook {cmd}" + (" (all hooks are disabled)" if off else ""))
     return {**base, "checked": checked, "result": "DRIFT" if drift else "MATCH", "drift": [str(d)[:160] for d in drift[:30]]}
 
 
 def recovery_status(repo: str | Path) -> dict:
-    lp = Path(repo) / ".harness" / "ledger.jsonl"
+    """The last drill line in the kit's ledger, as written. The chain is not verified here: `scripts/harness.py check` does that."""
     drills, last = 0, None
-    try:
-        if lp.is_file() and lp.stat().st_size <= _KIT_MAX:
-            for line in lp.read_text(encoding="utf-8", errors="replace").splitlines():
-                try:
-                    e = json.loads(line)
-                except ValueError:
-                    continue
-                if isinstance(e, dict) and e.get("type") == "drill":
-                    drills += 1
-                    last = {"result": str(e.get("result", "?"))[:20], "seconds": e.get("seconds") if isinstance(e.get("seconds"), (int, float)) else None,
-                            "ts": str(e.get("ts", ""))[:30], "by": str(e.get("by", "?"))[:60],
-                            "checks_run": e.get("checks_run") if isinstance(e.get("checks_run"), int) else None}
-    except OSError:
-        pass
+    for line in (_read_inside(Path(repo), ".harness/ledger.jsonl", _KIT_MAX) or "").splitlines():
+        try:
+            e = json.loads(line)
+        except ValueError:
+            continue
+        if isinstance(e, dict) and e.get("type") == "drill":
+            drills += 1
+            last = {"result": str(e.get("result", "?"))[:20], "seconds": e.get("seconds") if isinstance(e.get("seconds"), (int, float)) else None,
+                    "ts": str(e.get("ts", ""))[:30], "by": str(e.get("by", "?"))[:60],
+                    "checks_run": e.get("checks_run") if isinstance(e.get("checks_run"), int) else None}
     return {"drills": drills, "last": last}
 
 
@@ -1042,12 +1095,9 @@ def world_state(repo: str | Path) -> dict:
     team = team_of(ops)
     recs = [verify_record(root, l["id"]) for l in _ledger(root) if l.get("id")][-50:]
     kill = {"on": False}
-    kp = root / ".harness" / "KILL"
-    if kp.is_file():
-        try:
-            k = json.loads(kp.read_text(encoding="utf-8"))
-        except (OSError, ValueError):
-            k = {}
+    if kill_file(root) is not None:
+        k = _json_inside(root, ".harness/KILL")
+        k = k if isinstance(k, dict) else {}
         kill = {"on": True, "by": str(k.get("by", "?"))[:60], "reason": str(k.get("reason", "KILL file present"))[:200], "ts": str(k.get("ts", ""))[:30]}
     inbox, done = ops / "inbox", ops / "done"
     return {"version": VERSION, "repo": root.name, "stations": stations, "harness": hs, "team": team, "runner": runner_status(root),
@@ -1100,7 +1150,7 @@ def runner_ready(repo) -> list[str]:
         why.append(f"the harness is not installed ({hs['fitted']} of 6 pieces): python3 agent_company.py harness .")
     elif not hs["committed"]:
         why.append("commit the harness files first, so every worktree carries the guard: python3 agent_company.py harness . --commit")
-    if (root / ".harness" / "KILL").exists():
+    if kill_file(root) is not None:
         why.append("the kill switch is on (.harness/KILL); only a named person lifts it")
     if not (ops / "inbox").is_dir() or not any((ops / "inbox").glob("[0-9][0-9][0-9]_*.md")):
         why.append("nothing in the inbox: write an instruction first")
@@ -1177,7 +1227,7 @@ def _supervise(repo: str, tool: str, argv_json: str) -> int:
             code = child.poll()
             if code is not None:
                 write(state="exited", pid=child.pid, exit=code, ended=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())); break
-            if (root / ".harness" / "KILL").exists():
+            if kill_file(root) is not None:
                 end("killed"); break
             if (out / ".runner.stop").exists():
                 end("stopped"); break

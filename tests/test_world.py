@@ -356,3 +356,18 @@ class WorldKitReview(_KitRepo, unittest.TestCase):
             self.assertTrue(ac.world_state(self.repo)["kill"]["on"])
             k.rmdir() if k.is_dir() else k.unlink()
         self.assertFalse(ac.world_state(self.repo)["kill"]["on"])
+
+    def test_disabled_hooks_unfit_agent_companys_own_harness(self):
+        ac.install_harness(self.repo)
+        self.assertEqual(ac.world_state(self.repo)["harness"]["fitted"], 6)
+        sp = self.repo / ".claude/settings.json"
+        s = json.loads(sp.read_text(encoding="utf-8"))
+        sp.write_text(json.dumps({**s, "disableAllHooks": True}), encoding="utf-8")
+        h = ac.world_state(self.repo)["harness"]
+        self.assertLess(h["fitted"], 6)                                # the guard file is there, but nothing runs it
+        self.assertFalse(h["pieces"]["helm"] or h["pieces"]["hands"] or h["pieces"]["amulet"])
+        sp.write_text(json.dumps(s), encoding="utf-8")
+        (self.repo / ".claude/settings.local.json").write_text('{"disableAllHooks": true}', encoding="utf-8")
+        self.assertLess(ac.world_state(self.repo)["harness"]["fitted"], 6)
+        sp.write_text("[1, 2]", encoding="utf-8")                      # an odd settings file must not take the screen down
+        self.assertEqual(ac.world_state(self.repo)["harness"]["fitted"], 0)
