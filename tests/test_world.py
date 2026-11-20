@@ -188,8 +188,8 @@ if __name__ == "__main__":
     unittest.main()
 
 
-class WorldKit(unittest.TestCase):
-    """The World reads a Harness Marketplace kit (golden image, recovery drills) if the repo carries one. Read-only."""
+class _KitRepo:
+    """A scratch repo, and one scaffolded the way the kit's harness-init leaves it."""
 
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -225,6 +225,10 @@ class WorldKit(unittest.TestCase):
         img["image_sha"] = ac._golden_image_hash(img)
         (r / "scripts/golden-image.json").write_text(json.dumps(img, indent=2) + "\n", encoding="utf-8")
         return img
+
+
+class WorldKit(_KitRepo, unittest.TestCase):
+    """The World reads a Harness Marketplace kit (golden image, recovery drills) if the repo carries one. Read-only."""
 
     def test_a_repo_without_the_kit_says_so(self):
         k = self.kit()
@@ -272,3 +276,83 @@ class WorldKit(unittest.TestCase):
         (self.repo / ".harness/ledger.jsonl").write_text("\n".join(json.dumps(x) for x in lines) + "\nnot json\n", encoding="utf-8")
         self.assertEqual(self.kit()["recovery"], {"drills": 2, "last": {"result": "RECOVERED", "seconds": 3.25, "ts": "2026-11-20T08:20:00Z",
                                                                           "by": "Owner", "checks_run": 2}})
+
+
+class WorldKitReview(_KitRepo, unittest.TestCase):
+    """Found by an independent review on 20 Nov 2026: ways the readout said MATCH, or read outside the repo, when it must not."""
+
+    def test_an_image_that_lists_nothing_is_not_a_match(self):
+        self.scaffold()
+        for img in ({}, {"locked": {}, "required": [], "deny": [], "hooks": []}, {"locked": [], "required": {}, "deny": "x", "hooks": 1}):
+            img = dict(img, version="1.5.0"); img["image_sha"] = ac._golden_image_hash(img)
+            (self.repo / "scripts/golden-image.json").write_text(json.dumps(img), encoding="utf-8")
+            g = self.kit()["golden"]
+            self.assertEqual((g["result"], g["checked"]), ("ALTERED", 0), img)
+
+    def test_links_that_leave_the_repo_are_never_read(self):
+        import os
+        self.scaffold()
+        outside = Path(tempfile.mkdtemp())
+        (outside / "secret.json").write_text(json.dumps({"version": "PRIVATE-TOKEN-123", "image_sha": "SECRETSECRET", "type": "drill",
+                                                         "result": "RECOVERED", "by": "PRIVATE-NAME", "ts": "2099"}), encoding="utf-8")
+        for rel in ("scripts/golden-image.json", ".harness/ledger.jsonl"):
+            (self.repo / rel).unlink(); os.symlink(outside / "secret.json", self.repo / rel)
+        k = self.kit()
+        self.assertNotIn("PRIVATE", json.dumps(k)); self.assertNotIn("SECRET", json.dumps(k))
+        self.assertEqual(k["golden"]["result"], "ALTERED")
+        self.assertEqual(k["recovery"], {"drills": 0, "last": None})
+        # settings linked outside the repo count as no settings at all
+        (self.repo / "scripts/golden-image.json").unlink(); (self.repo / ".harness/ledger.jsonl").unlink(); self.scaffold()
+        good = (self.repo / ".claude/settings.json").read_text(encoding="utf-8")
+        (outside / "settings.json").write_text(good, encoding="utf-8")
+        (self.repo / ".claude/settings.json").unlink(); os.symlink(outside / "settings.json", self.repo / ".claude/settings.json")
+        g = self.kit()["golden"]
+        self.assertEqual(g["result"], "DRIFT"); self.assertIn("DRIFT deny Bash(git push *)", g["drift"])
+
+    def test_a_hook_that_cannot_stop_anything_is_drift(self):
+        self.scaffold()
+        sp = self.repo / ".claude/settings.json"
+        good = json.loads(sp.read_text(encoding="utf-8"))
+        gate = "python3 scripts/runtime.py gate"
+        def result(settings, local=None):
+            sp.write_text(json.dumps(settings), encoding="utf-8")
+            lp = self.repo / ".claude/settings.local.json"
+            lp.write_text(json.dumps(local), encoding="utf-8") if local is not None else (lp.unlink() if lp.exists() else None)
+            return self.kit()["golden"]
+        self.assertEqual(result(good)["result"], "MATCH")
+        entry = {"type": "command", "command": gate}
+        cases = {"under PostToolUse": {**good, "hooks": {"PostToolUse": [{"matcher": "*", "hooks": [entry]}]}},
+                 "under a made-up event": {**good, "hooks": {"NoSuchEvent": [{"matcher": "*", "hooks": [entry]}]}},
+                 "matcher narrowed": {**good, "hooks": {"PreToolUse": [{"matcher": "Read", "hooks": [entry]}]}},
+                 "type is not command": {**good, "hooks": {"PreToolUse": [{"matcher": "*", "hooks": [{**entry, "type": "prompt"}]}]}},
+                 "all hooks disabled": {**good, "disableAllHooks": True}}
+        for name, s in cases.items():
+            g = result(s)
+            self.assertEqual(g["result"], "DRIFT", name); self.assertTrue(any("hook" in d for d in g["drift"]), name)
+        g = result(good, local={"disableAllHooks": True})
+        self.assertEqual(g["result"], "DRIFT", "disabled in settings.local.json")
+
+    def test_odd_settings_never_crash_the_screen_or_pass(self):
+        self.scaffold()
+        sp = self.repo / ".claude/settings.json"
+        good = json.loads(sp.read_text(encoding="utf-8"))
+        for odd in ([1, 2], {**good, "permissions": {"deny": {r: True for r in good["permissions"]["deny"]}}},
+                    {**good, "permissions": {"deny": good["permissions"]["deny"] + [{"a": 1}, ["b"]]}}, {**good, "hooks": {"PreToolUse": "x"}},
+                    {**good, "hooks": {"PreToolUse": [1, {"hooks": "x"}, {"hooks": [1]}]}}):
+            sp.write_text(json.dumps(odd), encoding="utf-8")
+            g = self.kit()["golden"]                                  # must not raise
+            if not (isinstance(odd, dict) and isinstance(odd.get("permissions", {}).get("deny"), list) and isinstance(odd.get("hooks"), dict)
+                    and odd["hooks"].get("PreToolUse") and isinstance(odd["hooks"]["PreToolUse"], list) and isinstance(odd["hooks"]["PreToolUse"][0], dict)):
+                self.assertEqual(g["result"], "DRIFT", odd)
+        sp.write_bytes(b"\xff\xfe not utf-8")
+        self.assertEqual(self.kit()["golden"]["result"], "DRIFT")
+
+    def test_any_kill_file_counts_as_on(self):
+        kp = self.repo / ".harness"; kp.mkdir(exist_ok=True)
+        for make in (lambda p: p.write_text("{}", encoding="utf-8"), lambda p: p.write_text("[1]", encoding="utf-8"),
+                     lambda p: p.write_bytes(b"\xff\xfe stop"), lambda p: p.mkdir()):
+            k = kp / "KILL"
+            make(k)
+            self.assertTrue(ac.world_state(self.repo)["kill"]["on"])
+            k.rmdir() if k.is_dir() else k.unlink()
+        self.assertFalse(ac.world_state(self.repo)["kill"]["on"])
