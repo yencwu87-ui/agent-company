@@ -582,7 +582,51 @@ def harness_status(repo) -> dict:
         "boots": guard and (hd / "real_data_paths.txt").exists() and "Read" in matchers,
         "amulet": guard and bool(post),
     }
-    return {"pieces": pieces, "fitted": sum(pieces.values()), "pre_push": prepush, "settings": str(root / ".claude" / "settings.json")}
+    unc = _harness_uncommitted(root)
+    return {"pieces": pieces, "fitted": sum(pieces.values()), "pre_push": prepush, "settings": str(root / ".claude" / "settings.json"),
+            "committed": not unc, "uncommitted": unc}
+
+
+# The harness only protects a builder in its own worktree if these files are in git: a worktree is made from a commit,
+# and Claude Code loads the guard from "$CLAUDE_PROJECT_DIR/docs/ops/harness/guard.py", which is the worktree.
+HARNESS_FILES = ["AGENTS.md", ".claude/settings.json", "docs/ops/harness/guard.py", "docs/ops/harness/allowlist.json", "docs/ops/harness/real_data_paths.txt"]
+
+
+def _harness_uncommitted(root: Path) -> list[str]:
+    out = []
+    has_head = bool(_git(root, "rev-parse", "--verify", "-q", "HEAD"))
+    for f in HARNESS_FILES:
+        if not (root / f).exists() or not _git(root, "ls-files", "--", f) or not has_head:
+            out.append(f); continue
+        try:
+            r = subprocess.run(["git", "-C", str(root), "diff", "--quiet", "HEAD", "--", f], capture_output=True, timeout=20)
+            if r.returncode != 0:
+                out.append(f)
+        except (OSError, subprocess.SubprocessError):
+            out.append(f)
+    return out
+
+
+def commit_harness(repo) -> dict:
+    """Commit the harness files, and only those, on the current branch. This is the owner's step (a click in the World,
+    or `harness --commit`): after it, every worktree made from this branch carries the guard."""
+    root = Path(repo).resolve()
+    st = harness_status(root)
+    if st["fitted"] < 6:
+        return {"error": f"only {st['fitted']} of 6 harness pieces are fitted; install the harness first", "status": st}
+    files = [f for f in HARNESS_FILES if (root / f).exists()]
+    ident = [] if _git(root, "config", "user.email") else ["-c", "user.name=Agent Company owner", "-c", "user.email=owner@localhost"]
+    try:
+        subprocess.run(["git", "-C", str(root), "add", "--", *files], capture_output=True, text=True, timeout=30, check=True)
+        if st["uncommitted"]:
+            r = subprocess.run(["git", "-C", str(root), *ident, "commit", "-q", "-m",
+                                "Commit the Agent Company harness so every worktree carries the guard", "--", *files],
+                               capture_output=True, text=True, timeout=30)
+            if r.returncode != 0:
+                return {"error": "git would not commit the harness files: " + (r.stderr or r.stdout).strip()[:300], "status": harness_status(root)}
+    except (OSError, subprocess.SubprocessError) as e:
+        return {"error": f"git failed: {e}", "status": harness_status(root)}
+    return {"committed": files, "commit": _git(root, "rev-parse", "--short", "HEAD"), "status": harness_status(root)}
 
 
 GUARD_MATCHER = "Bash|Edit|Write|MultiEdit|NotebookEdit|Read|Grep|Glob|LS|WebFetch|WebSearch|mcp__.*"
@@ -652,17 +696,24 @@ def install_harness(repo) -> dict:
     return {"done": done, "status": harness_status(root)}
 
 
-def cmd_harness(repo: str, check: bool) -> int:
+def cmd_harness(repo: str, check: bool, commit: bool = False) -> int:
     names = {"helm": "Worktree helm", "chest": "Deny-rule plate", "hands": "No-merge gauntlets", "belt": "Allowlist belt", "boots": "Constructed-data boots", "amulet": "Evidence amulet"}
     if not check:
         r = install_harness(repo)
         if "error" in r:
             print(r["error"]); return 1
         print("installed:\n  " + "\n  ".join(r["done"]))
+    if commit:
+        c = commit_harness(repo)
+        if "error" in c:
+            print(c["error"]); return 1
+        print(f"committed ({c['commit']}):\n  " + "\n  ".join(c["committed"]))
     s = harness_status(repo)
     print(f"harness {s['fitted']}/6 enforced in this repo · pre-push hook: {'yes' if s['pre_push'] else 'no'}")
     for k, v in s["pieces"].items():
         print(f"  {'✓' if v else '✗'} {names[k]}")
+    if s["fitted"] == 6 and not s["committed"]:
+        print("  ! not in git yet: " + ", ".join(s["uncommitted"]) + "\n    A builder in its own worktree would run without the guard. Run: python3 agent_company.py harness . --commit")
     return 0 if s["fitted"] == 6 else 1
 
 
@@ -853,6 +904,7 @@ WORLD_STATIONS = [("setup", "Set up", "Project depot"), ("team", "Forge a team",
                   ("orders", "Write quests", "Dispatch office"), ("run", "Start the coordinator", "Coordinator tower"), ("proof", "Seal proof", "Evidence vault")]
 WORLD_HOW = {"team": "Add your agents on the Command map (one coordinator, a builder and an independent evaluator), then press Deploy.",
              "harness": "Press Install the harness. It fits all six pieces in this repo and keeps your old settings as a backup.",
+             "run": "In a terminal: python3 agent_company.py start . --tool claude --run (or codex, gemini). Or with no window, one instruction at a time: python3 agent_company.py run . --tool claude",
              "orders": "Write a mission on the Command map (the owner's words, a branch, tests, and a stop point that says Don't merge), then press Deploy."}
 
 
@@ -863,13 +915,18 @@ def world_state(repo: str | Path) -> dict:
     ops = ops_dir(root)
     raw = {s["name"]: s for s in stage(root)["steps"]}
     stations, open_seen = [], False
+    hs = harness_status(root)
     for sid, step, name in WORLD_STATIONS:
-        ok = raw[step]["done"]
+        ok = raw[step]["done"] and (sid != "harness" or hs["committed"])
         state = "locked" if open_seen else ("done" if ok else "next")
         open_seen = open_seen or not ok
         st = {"id": sid, "name": name, "step": step, "state": state, "how": WORLD_HOW.get(sid, raw[step]["how"])}
         if sid == "harness":
             st["action"] = "install-harness"
+            if hs["fitted"] == 6 and not hs["committed"]:
+                st["action"] = "commit-harness"; st["step"] = "Commit the harness files"
+                st["how"] = ("All six pieces are fitted, but their files are not in git yet, so a builder in its own worktree would run without "
+                             "the guard. Press Commit the harness files.")
         stations.append(st)
     team = team_of(ops)
     recs = [verify_record(root, l["id"]) for l in _ledger(root) if l.get("id")][-50:]
@@ -882,11 +939,160 @@ def world_state(repo: str | Path) -> dict:
             k = {}
         kill = {"on": True, "by": str(k.get("by", "?"))[:60], "reason": str(k.get("reason", "KILL file present"))[:200], "ts": str(k.get("ts", ""))[:30]}
     inbox, done = ops / "inbox", ops / "done"
-    return {"version": VERSION, "repo": root.name, "stations": stations, "harness": harness_status(root), "team": team,
+    return {"version": VERSION, "repo": root.name, "stations": stations, "harness": hs, "team": team, "runner": runner_status(root),
             "orders": {"pending": len(list(inbox.glob("[0-9][0-9][0-9]_*.md"))) if inbox.is_dir() else 0,
                        "done": len(list(done.glob("[0-9][0-9][0-9]_*.md"))) if done.is_dir() else 0},
             "proof": {"sealed": sum(1 for r in recs if r.get("sealed")), "broken": sum(1 for r in recs if not r.get("ok"))},
             "kill": kill, "read_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
+
+
+# ---------------------------------------------------------------- the background runner
+# One coordinator, with no window, on one instruction. It refuses to start unless the harness is fitted AND committed,
+# the kill switch is off and nothing else is running. A supervisor process watches it: `run --stop` or the kill switch
+# (.harness/KILL) ends the agent's whole process group. Nothing here skips a tool's own permission checks.
+RUNNER_PROMPT = ("You are the coordinator. Follow docs/ops/inbox/README.md. Do only the lowest-numbered instruction in docs/ops/inbox/, "
+                 "then update docs/ops/outbox/STATUS.md and stop. Never merge.")
+HEADLESS = {"claude": ["claude", "-p", RUNNER_PROMPT], "codex": ["codex", "exec", RUNNER_PROMPT], "gemini": ["gemini", "-p", RUNNER_PROMPT]}
+
+
+def _alive(pid) -> bool:
+    try:
+        os.kill(int(pid), 0)
+    except (OSError, ValueError, TypeError):
+        return False
+    try:                                                   # a finished child that nobody has collected yet is not alive
+        stat = Path(f"/proc/{int(pid)}/stat").read_text().rsplit(")", 1)[1].split()
+        return stat[0] != "Z"
+    except (OSError, IndexError):
+        return True
+
+
+def _runner_file(root: Path) -> Path:
+    return ops_dir(root) / "outbox" / "RUNNER.json"
+
+
+def runner_status(repo) -> dict:
+    p = _runner_file(Path(repo).resolve())
+    try:
+        st = json.loads(p.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {"state": "never"}
+    if st.get("state") in ("running", "starting") and not _alive(st.get("supervisor")):
+        st["state"] = "lost"                               # its supervisor is gone, so nothing is watching it
+    return st
+
+
+def runner_ready(repo) -> list[str]:
+    root = Path(repo).resolve(); ops = ops_dir(root); hs = harness_status(root); why = []
+    if hs["fitted"] < 6:
+        why.append(f"the harness is not installed ({hs['fitted']} of 6 pieces): python3 agent_company.py harness .")
+    elif not hs["committed"]:
+        why.append("commit the harness files first, so every worktree carries the guard: python3 agent_company.py harness . --commit")
+    if (root / ".harness" / "KILL").exists():
+        why.append("the kill switch is on (.harness/KILL); only a named person lifts it")
+    if not (ops / "inbox").is_dir() or not any((ops / "inbox").glob("[0-9][0-9][0-9]_*.md")):
+        why.append("nothing in the inbox: write an instruction first")
+    st = runner_status(root)
+    if st.get("state") in ("running", "starting"):
+        why.append(f"a runner is already running (pid {st.get('pid')}); exactly one coordinator at a time")
+    return why
+
+
+def start_runner(repo, tool: str, argv: list[str] | None = None, extra: list[str] | None = None) -> dict:
+    root = Path(repo).resolve()
+    if argv is None:
+        if tool not in HEADLESS:
+            return {"error": f"{tool} has no headless mode here; use: python3 agent_company.py start . --tool {tool}"}
+        argv = HEADLESS[tool] + list(extra or [])
+    why = runner_ready(root)
+    if why:
+        return {"error": "; ".join(why)}
+    if not shutil.which(argv[0]):
+        return {"error": f"{argv[0]} is not installed or not on PATH"}
+    out = ops_dir(root) / "outbox"; out.mkdir(parents=True, exist_ok=True)
+    (out / ".runner.stop").unlink(missing_ok=True)
+    started = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    _runner_file(root).write_text(json.dumps({"state": "starting", "tool": tool, "started": started, "supervisor": os.getpid()}), encoding="utf-8")
+    kw = {"start_new_session": True} if os.name != "nt" else {"creationflags": getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)}
+    sup = subprocess.Popen([sys.executable, str(Path(__file__).resolve()), "_supervise", str(root), tool, json.dumps(argv)],
+                           stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, **kw)
+    end = time.time() + 5
+    while time.time() < end:
+        st = runner_status(root)
+        if st.get("supervisor") == sup.pid and st.get("state") != "starting":
+            break
+        time.sleep(.05)
+    return {**runner_status(root), "log": str(out / "runner.log")}
+
+
+def stop_runner(repo) -> dict:
+    root = Path(repo).resolve(); st = runner_status(root)
+    if st.get("state") not in ("running", "starting"):
+        return st
+    (ops_dir(root) / "outbox" / ".runner.stop").write_text("stop", encoding="utf-8")
+    return st
+
+
+def _supervise(repo: str, tool: str, argv_json: str) -> int:
+    root = Path(repo).resolve(); out = ops_dir(root) / "outbox"; rf = _runner_file(root)
+    argv = json.loads(argv_json); started = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    def write(**kv):
+        rf.write_text(json.dumps({"tool": tool, "started": started, "supervisor": os.getpid(), "log": "docs/ops/outbox/runner.log", **kv}), encoding="utf-8")
+    with open(out / "runner.log", "a", encoding="utf-8") as log:
+        log.write(f"\n=== {started}  {tool}: one coordinator, one instruction ===\n"); log.flush()
+        kw = {"start_new_session": True} if os.name != "nt" else {"creationflags": getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)}
+        try:
+            child = subprocess.Popen(argv, cwd=root, stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT, **kw)
+        except OSError as e:
+            write(state="exited", exit=127, error=str(e), ended=started); return 1
+        write(state="running", pid=child.pid)
+        def end(state):
+            try:
+                os.killpg(child.pid, 15) if os.name != "nt" else child.terminate()
+            except OSError:
+                pass
+            try:
+                child.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                try:
+                    os.killpg(child.pid, 9) if os.name != "nt" else child.kill()
+                except OSError:
+                    pass
+                child.wait()
+            log.write(f"=== {state} by the supervisor ===\n")
+            write(state=state, pid=child.pid, exit=child.returncode, ended=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()))
+        while True:
+            code = child.poll()
+            if code is not None:
+                write(state="exited", pid=child.pid, exit=code, ended=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())); break
+            if (root / ".harness" / "KILL").exists():
+                end("killed"); break
+            if (out / ".runner.stop").exists():
+                end("stopped"); break
+            time.sleep(.2)
+    (out / ".runner.stop").unlink(missing_ok=True)
+    return 0
+
+
+def cmd_run(repo: str, tool: str, status: bool, stop: bool, extra: list[str]) -> int:
+    root = Path(repo).resolve()
+    if status or stop:
+        st = stop_runner(root) if stop else runner_status(root)
+        if stop and st.get("state") in ("running", "starting"):
+            end = time.time() + 8
+            while time.time() < end and runner_status(root).get("state") in ("running", "starting"):
+                time.sleep(.2)
+            st = runner_status(root)
+        print(f"runner: {st.get('state')}" + (f"  tool {st.get('tool')}  pid {st.get('pid')}  started {st.get('started')}" if st.get("tool") else "")
+              + (f"  exit {st.get('exit')}" if "exit" in st else ""))
+        return 0
+    r = start_runner(root, tool, extra=extra)
+    if r.get("error"):
+        print("not started: " + r["error"]); return 1
+    print(f"Coordinator running in the background ({tool}, pid {r.get('pid')}). It does the lowest-numbered instruction, then stops.\n"
+          f"  log:    {r['log']}\n  status: python3 agent_company.py run . --status\n  stop:   python3 agent_company.py run . --stop\n"
+          "A headless agent can use only the tools this project's settings allow. The World shows its state in the Coordinator tower.")
+    return 0
 
 
 def _print_checks(rows: list[dict]) -> bool:
@@ -1122,7 +1328,7 @@ def make_handler(ops: Path, token: str):
 
         def do_POST(self):
             path = urlparse(self.path).path
-            if path not in ("/api/deploy", "/api/harness/install") or not self._ok_token():
+            if path not in ("/api/deploy", "/api/harness/install", "/api/harness/commit") or not self._ok_token():
                 return self._send(403, '{"error":"refused"}')
             if self.headers.get("Content-Type", "").split(";")[0] != "application/json":
                 return self._send(415, '{"error":"json only"}')
@@ -1135,6 +1341,8 @@ def make_handler(ops: Path, token: str):
                 return self._send(400, '{"error":"bad json"}')
             if path == "/api/harness/install":
                 return self._send(200, json.dumps(install_harness(ops.parent.parent)))
+            if path == "/api/harness/commit":
+                return self._send(200, json.dumps(commit_harness(ops.parent.parent)))
             return self._send(200, json.dumps(deploy_files(ops, body.get("files", []), body.get("plan"), body.get("guild"))))
 
     return H
@@ -1311,7 +1519,9 @@ def main(argv=None) -> int:
     s = sub.add_parser("verify"); s.add_argument("repo", nargs="?", default="."); s.add_argument("id", nargs="?"); s.add_argument("--rerun", action="store_true"); s.add_argument("--json", action="store_true")
     s.add_argument("--signers", default="", help="an allowed_signers file you trust, instead of the one in the repo")
     s = sub.add_parser("cosign", help="add an Ed25519 signature to records this machine sealed, so anyone can check them"); s.add_argument("repo", nargs="?", default="."); s.add_argument("id", nargs="?")
-    s = sub.add_parser("harness"); s.add_argument("repo", nargs="?", default="."); s.add_argument("--check", action="store_true")
+    s = sub.add_parser("harness"); s.add_argument("repo", nargs="?", default="."); s.add_argument("--check", action="store_true"); s.add_argument("--commit", action="store_true", help="commit the harness files so every worktree carries the guard")
+    s = sub.add_parser("run", help="one coordinator in the background, with no window, on one instruction"); s.add_argument("repo", nargs="?", default="."); s.add_argument("--tool", choices=sorted(HEADLESS), default="claude"); s.add_argument("--status", action="store_true"); s.add_argument("--stop", action="store_true"); s.add_argument("--tool-arg", action="append", default=[], help="an extra argument for the tool, added on your own judgement")
+    s = sub.add_parser("_supervise"); s.add_argument("repo"); s.add_argument("tool"); s.add_argument("argv")
     s = sub.add_parser("card"); s.add_argument("repo", nargs="?", default="."); s.add_argument("agent", nargs="?"); s.add_argument("--seal", action="store_true")
     s = sub.add_parser("trust"); s.add_argument("repo", nargs="?", default="."); s.add_argument("--json", action="store_true"); s.add_argument("--seal", action="store_true")
     s = sub.add_parser("launch", help="the zero-knowledge start: folder, git, setup and the Guild in one step"); s.add_argument("repo", nargs="?"); s.add_argument("--port", type=int, default=8765); s.add_argument("--no-browser", action="store_true")
@@ -1353,7 +1563,11 @@ def main(argv=None) -> int:
     if a.cmd == "cosign":
         return cmd_cosign(a.repo, a.id)
     if a.cmd == "harness":
-        return cmd_harness(a.repo, a.check)
+        return cmd_harness(a.repo, a.check and not a.commit, a.commit)
+    if a.cmd == "run":
+        return cmd_run(a.repo, a.tool, a.status, a.stop, a.tool_arg)
+    if a.cmd == "_supervise":
+        return _supervise(a.repo, a.tool, a.argv)
     if a.cmd == "card":
         return cmd_card(a.repo, a.agent, a.seal)
     if a.cmd == "trust":

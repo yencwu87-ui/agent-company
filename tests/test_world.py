@@ -52,6 +52,8 @@ class WorldState(unittest.TestCase):
         self.assertEqual({s["id"]: s["state"] for s in w["stations"]}["harness"], "next")
         self.assertEqual([(t["name"], t["role"]) for t in w["team"]], [("Brannoc", "Builder"), ("Ysolde", "Evaluator")])
         ac.install_harness(self.repo)
+        subprocess.run(["git", "-C", str(self.repo), "-c", "user.name=Owner", "-c", "user.email=o@example.test", "commit", "-q", "--allow-empty", "-m", "start"], check=True)
+        self.assertNotIn("error", ac.commit_harness(self.repo))      # the harness step closes only once its files are committed
         w = ac.world_state(self.repo)
         self.assertEqual(w["harness"]["fitted"], 6)
         self.assertEqual({s["id"]: s["state"] for s in w["stations"]}["orders"], "next")
@@ -63,6 +65,8 @@ class WorldState(unittest.TestCase):
     def test_coordinator_counts_as_started_only_when_status_has_a_real_time(self):
         ac.deploy_files(self.ops, [["inbox/001_add-rate-limiting.md", GOOD]], None, {"heroes": {"h1": {"name": "Mara", "cls": "leader"}}})
         ac.install_harness(self.repo)
+        subprocess.run(["git", "-C", str(self.repo), "-c", "user.name=Owner", "-c", "user.email=o@example.test", "commit", "-q", "--allow-empty", "-m", "start"], check=True)
+        ac.commit_harness(self.repo)
         self.assertEqual(self.stations()["run"]["state"], "next", "the untouched STATUS.md template must not read as a running coordinator")
         (self.ops / "outbox" / "STATUS.md").write_text("# Status\n\nTime: 2026-11-20 12:10 SGT (checked against the remote)\n", encoding="utf-8")
         self.assertEqual(self.stations()["run"]["state"], "done")

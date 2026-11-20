@@ -100,7 +100,7 @@ const DEMO={demo:true,version:'demo',repo:'demo-project',stations:[
  {id:'orders',name:'Dispatch office',step:'Write quests',state:'locked',how:'Write a mission on the Command map.'},
  {id:'run',name:'Coordinator tower',step:'Start the coordinator',state:'locked',how:'Run: python3 agent_company.py start . --tool claude --run'},
  {id:'proof',name:'Evidence vault',step:'Seal proof',state:'locked',how:'After an approving review, seal the proof.'}],
- harness:{pieces:{helm:true,chest:true,hands:false,belt:false,boots:false,amulet:false},fitted:2,pre_push:false},
+ harness:{pieces:{helm:true,chest:true,hands:false,belt:false,boots:false,amulet:false},fitted:2,pre_push:false,committed:false},runner:{state:'never'},
  team:[{name:'Mara',role:'Coordinator',origin:'Claude Code',level:1},{name:'Brannoc',role:'Builder',origin:'Claude Code',level:1},{name:'Ysolde',role:'Evaluator',origin:'Codex',level:1}],
  orders:{pending:0,done:0},proof:{sealed:0,broken:0},kill:{on:false},read_at:''};
 
@@ -212,20 +212,25 @@ function panels(){
  if(selected)renderCard();
 }
 function stamp(){$('src').textContent=W.demo?'Demo. For the live world run: python3 agent_company.py world':'Agent Company '+W.version+' · read from '+W.repo+' at '+(W.read_at||'').slice(11,19)+' UTC · refreshes every 3 s';if(!W.kill.on&&!W.demo){$('badge').className='badge';$('badge-t').textContent='LIVE · '+W.repo}}
-function actionBtn(s){const b=el('button','btn go','Install the harness');b.style.flex='none';b.disabled=!!W.demo;if(W.demo)b.title='Run the live world to use this';
- b.onclick=async()=>{b.disabled=true;b.textContent='Installing…';try{const r=await api('/api/harness/install',{});say('Harness installed: '+(r.fitted??'?')+' of 6 pieces enforced.');await refresh()}catch(e){say('Install refused: '+e.message);b.disabled=false;b.textContent='Install the harness'}};return b}
+const ACTIONS={'install-harness':['Install the harness','/api/harness/install','Installing…',r=>'Harness installed: '+((r.status&&r.status.fitted)??'?')+' of 6 pieces enforced. Next: commit its files.'],
+ 'commit-harness':['Commit the harness files','/api/harness/commit','Committing…',r=>'Harness files committed ('+(r.commit||'?')+'). Every worktree now carries the guard.']};
+function actionBtn(s){const A=ACTIONS[s.action]||ACTIONS['install-harness'];const b=el('button','btn go',A[0]);b.style.flex='none';b.disabled=!!W.demo;if(W.demo)b.title='Run the live world to use this';
+ b.onclick=async()=>{b.disabled=true;b.textContent=A[2];try{const r=await api(A[1],{});if(r.error)throw new Error(r.error);say(A[3](r));await refresh()}catch(e){say('Refused: '+e.message);b.disabled=false;b.textContent=A[0]}};return b}
 function row(k,v,cls){const r=el('div','row');r.append(el('span','',k),el('b',cls||'',v));return r}
 function renderCard(){
  const c=$('card');c.textContent='';const x=el('button','x','×');x.setAttribute('aria-label','Close');x.onclick=hideCard;c.append(x);
  if(selected==='kill'){c.append(el('h3','','Kill switch'),el('div','state '+(W.kill.on?'kill':'done'),W.kill.on?'On: agents stopped':'Off'));
   if(W.kill.on)c.append(row('Set by',W.kill.by),row('Reason',W.kill.reason),row('When',W.kill.ts||'?'));
-  c.append(el('div','note','This tower shows the kill switch from the Harness Marketplace runtime pack (the file .harness/KILL). The pack is not released yet, so on most projects this stays off. When it is on, only a named person lifts it, from the terminal: this screen has no button for it.'));return}
+  c.append(el('div','note','This tower shows the kill switch (the file .harness/KILL). While it is on, the background runner will not start, and a running one is ended at once. The commands that set and lift it come with the Harness Marketplace runtime pack, which is not released yet. Only a named person lifts it, from the terminal: this screen has no button for it.'));return}
  const s=st(selected),i=W.stations.indexOf(s);c.append(el('h3','',(i+1)+'. '+s.name),el('div','state '+s.state,s.state==='done'?'Done':s.state==='next'?'Next step':'Locked until step '+(W.stations.findIndex(q=>q.state==='next')+1)+' is done'));
  if(s.id==='setup')c.append(row('Project',W.repo),row('Agent Company',W.version),row('Orders folder','docs/ops/'));
  if(s.id==='team'){if(!W.team.length)c.append(row('Agents','none yet','bad'));W.team.forEach(m=>c.append(row(m.name,m.role+' · '+m.origin)))}
- if(s.id==='harness'){c.append(row('Pieces enforced',W.harness.fitted+' / 6',W.harness.fitted===6?'ok':'bad'));PIECES.forEach(([k,label])=>c.append(row(label,W.harness.pieces[k]?'✓':'✗',W.harness.pieces[k]?'ok':'bad')));c.append(row('Pre-push hook',W.harness.pre_push?'✓':'✗',W.harness.pre_push?'ok':'bad'))}
+ if(s.id==='harness'){c.append(row('Pieces enforced',W.harness.fitted+' / 6',W.harness.fitted===6?'ok':'bad'));PIECES.forEach(([k,label])=>c.append(row(label,W.harness.pieces[k]?'✓':'✗',W.harness.pieces[k]?'ok':'bad')));c.append(row('Pre-push hook',W.harness.pre_push?'✓':'✗',W.harness.pre_push?'ok':'bad'),row('Committed, so worktrees carry it',W.harness.committed?'✓':'✗',W.harness.committed?'ok':'bad'))}
  if(s.id==='orders')c.append(row('Waiting in the inbox',String(W.orders.pending)),row('Done',String(W.orders.done)));
- if(s.id==='run')c.append(row('Coordinator',s.state==='done'?'started':'not started',s.state==='done'?'ok':''),row('Coordinators allowed','exactly 1'),row('Agents may merge','never','bad'));
+ if(s.id==='run'){const R=W.runner||{state:'never'},lab={never:'not used',starting:'starting',running:'running now',exited:'finished',stopped:'stopped by you',killed:'ended by the kill switch',lost:'lost: nothing is watching it'}[R.state]||R.state;
+  c.append(row('Coordinator',s.state==='done'?'started':'not started',s.state==='done'?'ok':''),row('Background runner',lab,R.state==='running'?'ok':(R.state==='lost'||R.state==='killed')?'bad':''));
+  if(R.tool)c.append(row('Tool',R.tool+(R.pid?' · pid '+R.pid:'')));if(R.exit!==undefined&&R.state!=='running')c.append(row('Exit code',String(R.exit),R.exit===0?'ok':'bad'));
+  c.append(row('Coordinators allowed','exactly 1'),row('Agents may merge','never','bad'))}
  if(s.id==='proof')c.append(row('Sealed records',String(W.proof.sealed),W.proof.sealed?'ok':''),row('Broken records',String(W.proof.broken),W.proof.broken?'bad':''));
  c.append(el('div','note',s.state==='done'?'This step has evidence in the repo.':s.how));
  if(s.action&&s.state==='next'&&!W.kill.on)c.append(actionBtn(s));

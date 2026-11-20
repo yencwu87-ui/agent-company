@@ -37,6 +37,8 @@ Press **Deploy**. It writes the orders into `docs/ops/` and never overwrites an 
 
 The harness is the set of limits an agent needs before you leave it alone. Press **Install the harness**. It fits all six pieces in this repo and keeps your old settings as `settings.json.before-agent-company`.
 
+Then press **Commit the harness files**. Until its files are in git, a builder working in its own worktree would not have the guard, so the step stays open.
+
 Click the Forge to see each piece. The card reads the result back from the repo; a piece shows a tick only when it is enforced.
 
 ![The Forge after installing the harness](screens/world-4-harness.png)
@@ -50,6 +52,8 @@ If you wrote missions in step 2, this step is already done: they are in `docs/op
 ```sh
 python3 agent_company.py start . --tool claude --run     # or codex, gemini
 ```
+
+Or with no window, one instruction at a time: `python3 agent_company.py run . --tool claude` (`--status` and `--stop` go with it). It refuses to start unless the harness is committed and the kill switch is off.
 
 Run exactly one. The Coordinator tower lights up when the coordinator writes its first status report (a real time in `docs/ops/outbox/STATUS.md`), and the dispatch line starts moving.
 
@@ -75,7 +79,8 @@ The Evidence vault counts sealed records, and shows a broken one in red if a rec
 
 ## Limits to know (20 Nov 2026)
 
-- **Kill-switch tower.** It shows the kill switch from the Harness Marketplace runtime pack (`.harness/KILL`). That pack is not released, so on most projects the tower stays green.
+- **Kill-switch tower.** It shows the file `.harness/KILL`. While it exists the background runner will not start and a running one is ended. The commands that set and lift it come with the Harness Marketplace runtime pack, which is not released.
+- **The background runner was tested with a stand-in tool,** not a live `claude -p` or `codex exec`. It adds no flag that skips permission checks, so a headless agent may need tools allowed in your settings first.
 - **The Command map loads its fonts from Google Fonts.** With no internet it still works, in a fallback font. The World itself loads nothing from outside.
 - **Characters, proving and training** are still in the Guild (`python3 agent_company.py guild`), which stays until the World can do them.
 - **The golden image check, audit score and red-team result** are not on the screen yet.
@@ -118,7 +123,7 @@ Afterwards a push of the branch onto `main` was tried on purpose. The pre-push h
 - **Not the owner's machine, and no merge.** The owner's merge is the last step and was not taken.
 
 **What the agents found (open, for the owner)**
-1. **The harness files are not committed by the install** (`AGENTS.md`, `.claude/`, `docs/ops/harness/`). A worktree made from `main` does not contain them, so a builder session started inside its worktree would load no guard hooks. The shared git pre-push hook still applies.
+1. **Fixed since:** the World now keeps the harness step open until its files are committed, and `harness --commit` or the Commit button does it. As found: **the harness files are not committed by the install** (`AGENTS.md`, `.claude/`, `docs/ops/harness/`). A worktree made from `main` does not contain them, so a builder session started inside its worktree would load no guard hooks. The shared git pre-push hook still applies.
 2. **The allowlist is empty after install** when the team comes from the Command map.
 3. **"Outbox" is ambiguous** between the main folder and the worktree's copy. This run used the main folder.
 4. **Step 6 of the standing orders reuses the builder's file name** (`001_report.md`) for the coordinator's closing report.

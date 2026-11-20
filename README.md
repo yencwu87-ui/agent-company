@@ -108,9 +108,9 @@ The World is drawn from the repository every 3 seconds (`GET /api/world`), so wh
 |---|---|---|
 | 1 Project depot | project name and version | `docs/ops/` exists |
 | 2 Team quarters | one figure per agent, with role and tool | a team is saved |
-| 3 The Forge | each of the six harness pieces, lit only if it is enforced | 6 of 6 are enforced; **Install the harness** does it from the screen |
+| 3 The Forge | each of the six harness pieces, lit only if it is enforced, and whether the harness files are in git | 6 of 6 are enforced **and** committed; **Install the harness**, then **Commit the harness files**, do it from the screen |
 | 4 Dispatch office | orders waiting and done | an instruction is in the inbox |
-| 5 Coordinator tower | whether the coordinator has started | `STATUS.md` carries a real time |
+| 5 Coordinator tower | whether the coordinator has started, and the background runner's state | `STATUS.md` carries a real time |
 | 6 Evidence vault | sealed and broken proof records | a record is sealed |
 | Kill-switch tower | green when clear; red, with who and why, when `.harness/KILL` exists | n/a |
 
@@ -118,6 +118,19 @@ Rules the screen keeps:
 - **No skipping.** A step shows as done only when every step before it is done.
 - **The screen can install the harness, but it cannot approve, merge or lift the kill switch.** Those stay with a named person in the terminal, so an agent that reaches the screen cannot release itself.
 - **Nothing loads from the internet.** three.js (MIT) ships in `ui/vendor/three`.
+
+### Running with no window
+
+```sh
+python3 agent_company.py harness . --commit      # once: put the harness files in git, so every worktree carries the guard
+python3 agent_company.py run . --tool claude     # one coordinator, in the background, on the lowest-numbered instruction
+python3 agent_company.py run . --status          # running, exited, stopped, killed or lost
+python3 agent_company.py run . --stop
+```
+
+`run` refuses to start unless the harness is fitted and committed, the kill switch is off, the inbox has an instruction, and no other runner is going. It starts `claude -p`, `codex exec` or `gemini -p` with the coordinator's prompt and nothing else: it adds no flag that skips the tool's own permission checks, so a headless agent can use only the tools your project's settings allow. A supervisor watches it; `--stop`, or the kill switch file `.harness/KILL`, ends the agent's whole process group. Output goes to `docs/ops/outbox/runner.log`.
+
+Tested with a stand-in tool only. A real `claude -p` or `codex exec` run has not been tried yet, and may need tools allowed in your settings before it can do useful work.
 
 Teams and orders are written on the Command map; the World links to it and the Command map links back.
 
@@ -506,6 +519,8 @@ Everything lives in `docs/ops/` of your project:
 python3 agent_company.py init   [repo]                  create docs/ops (never overwrites)
 python3 agent_company.py world  [repo] [--port N] [--no-browser]   the live 3D world (the start screen)
 python3 agent_company.py guild  [repo] [--port N] [--no-browser]   Guild mode (classic)
+python3 agent_company.py harness [repo] [--check] [--commit]        install the harness; --commit puts its files in git
+python3 agent_company.py run    [repo] [--tool T] [--status|--stop]  one coordinator in the background, one instruction
 python3 agent_company.py ui     [repo] [--port N] [--no-browser]   Command map
 python3 agent_company.py launch [folder]                START HERE: folder, git and setup, then the World opens
 python3 agent_company.py doctor [repo]                  plain-language checks of your computer and project, each with its fix
