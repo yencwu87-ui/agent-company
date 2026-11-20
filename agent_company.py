@@ -801,6 +801,12 @@ def doctor(repo: str | Path | None = None) -> list[dict]:
     return out
 
 
+def coordinator_started(ops: Path) -> bool:
+    """True once STATUS.md carries a real time. The template's "Time: <date time zone>" placeholder is not a start."""
+    p = ops / "outbox" / "STATUS.md"
+    return p.exists() and bool(re.search(r"^Time:\s*\d", p.read_text(encoding="utf-8", errors="replace"), re.M))
+
+
 def stage(repo: str | Path) -> dict:
     """Where this project is, and the one next step, for the first-run guide in the Guild."""
     root = Path(repo).resolve()
@@ -810,7 +816,7 @@ def stage(repo: str | Path) -> dict:
         ("Forge a team", (ops / "guild" / "guild.json").exists(), "Forge characters, or load the demo guild, then press Write to my repo on the War map."),
         ("Install the harness", harness_status(root)["fitted"] == 6, "In the Forge's harness step, press Install the harness in this repo."),
         ("Write quests", any((ops / "inbox").glob("[0-9][0-9][0-9]_*.md")) if (ops / "inbox").is_dir() else False, "Add a quest on the War map and sound the horn."),
-        ("Start the coordinator", (ops / "outbox" / "STATUS.md").exists() and "Time:" in (ops / "outbox" / "STATUS.md").read_text(encoding="utf-8", errors="replace"),
+        ("Start the coordinator", coordinator_started(ops),
          "Run: python3 agent_company.py start . --tool claude --run  (or codex, gemini)"),
         ("Seal proof", bool(_ledger(root)), "After an approving review: python3 agent_company.py seal . --quest 001 --pr <link> --test-cmd \"<tests>\""),
     ]
@@ -834,11 +840,8 @@ def world_state(repo: str | Path) -> dict:
     ops = ops_dir(root)
     raw = {s["name"]: s for s in stage(root)["steps"]}
     stations, open_seen = [], False
-    status = ops / "outbox" / "STATUS.md"
-    status_text = status.read_text(encoding="utf-8", errors="replace") if status.exists() else ""
-    started = bool(re.search(r"^Time:\s*\d", status_text, re.M))     # the template's "Time: <date...>" placeholder is not a start
     for sid, step, name in WORLD_STATIONS:
-        ok = started if sid == "run" else raw[step]["done"]
+        ok = raw[step]["done"]
         state = "locked" if open_seen else ("done" if ok else "next")
         open_seen = open_seen or not ok
         st = {"id": sid, "name": name, "step": step, "state": state, "how": WORLD_HOW.get(sid, raw[step]["how"])}
@@ -1065,6 +1068,8 @@ def make_handler(ops: Path, token: str):
                 return self._send(200, page, "text/html")
             if path in ("/guild", "/guild/"):
                 return self._send(200, guild_page, "text/html")
+            if path == "/favicon.ico":
+                self.send_response(204); self.end_headers(); return
             if path in ("/world", "/world/"):
                 return self._send(200, world_page, "text/html")
             if path.startswith("/vendor/"):

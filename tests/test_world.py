@@ -73,6 +73,20 @@ class WorldState(unittest.TestCase):
         (self.ops / "outbox" / "STATUS.md").write_text("# Status\n\nTime: 2026-11-20 12:10 SGT\n", encoding="utf-8")
         self.assertTrue({s["name"]: s["done"] for s in ac.stage(self.repo)["steps"]}["Start the coordinator"])
 
+    def test_a_team_placed_on_the_command_map_counts_as_a_team(self):
+        plan = {"units": {"u1": {"id": "u1", "role": "coord", "tool": "Claude Code"}, "u2": {"id": "u2", "role": "builder", "tool": "Claude Code"},
+                          "u3": {"id": "u3", "role": "evaluator", "tool": "Codex"}, "u9": {"id": "u9", "role": "watch", "tool": "Scheduled task"}},
+                "place": {"u1": "cp:coord", "u2": "m001:builder", "u3": "m001:evaluator"}, "missions": []}
+        ac.deploy_files(self.ops, [], plan, None)
+        w = ac.world_state(self.repo)
+        self.assertEqual({s["id"]: s["state"] for s in w["stations"]}["team"], "done")
+        self.assertEqual([(t["role"], t["origin"]) for t in w["team"]], [("Coordinator", "Claude Code"), ("Builder", "Claude Code"), ("Evaluator", "Codex")],
+                         "only units placed on the field are on the team")
+
+    def test_an_empty_command_map_is_not_a_team(self):
+        ac.deploy_files(self.ops, [], {"units": {"u1": {"id": "u1", "role": "coord", "tool": "Claude Code"}}, "place": {}, "missions": []}, None)
+        self.assertEqual(self.stations()["team"]["state"], "next")
+
     def test_kill_switch_file_is_reported_and_stops_the_line(self):
         (self.repo / ".harness").mkdir()
         (self.repo / ".harness" / "KILL").write_text(json.dumps({"by": "Owner", "reason": "drill", "ts": "2026-11-20T04:00:00Z"}))
@@ -135,6 +149,21 @@ class WorldServer(unittest.TestCase):
 
     def test_browser_icon_request_is_answered_quietly(self):
         self.assertEqual(self.code("/favicon.ico"), 204)
+
+    def post_code(self, path):
+        req = urllib.request.Request(self.base + path, data=b"{}", method="POST", headers={"Content-Type": "application/json"})
+        try:
+            with urllib.request.urlopen(req) as r:
+                return r.status
+        except urllib.error.HTTPError as e:
+            return e.code
+
+    def test_the_screen_cannot_approve_merge_seal_or_lift_the_kill_switch(self):
+        for path in ("/api/approve", "/api/merge", "/api/seal", "/api/kill", "/api/revive", "/api/world", "/api/start", "/api/verify"):
+            self.assertEqual(self.post_code(f"{path}?token={self.token}"), 403, path)
+
+    def test_command_map_links_back_to_the_world(self):
+        self.assertIn('id="btn-world"', self.get("/")[2])
 
     def test_world_state_needs_the_token(self):
         self.assertEqual(self.code("/api/world"), 403)
