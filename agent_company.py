@@ -902,10 +902,121 @@ def stage(repo: str | Path) -> dict:
 
 WORLD_STATIONS = [("setup", "Set up", "Project depot"), ("team", "Forge a team", "Team quarters"), ("harness", "Install the harness", "The Forge"),
                   ("orders", "Write quests", "Dispatch office"), ("run", "Start the coordinator", "Coordinator tower"), ("proof", "Seal proof", "Evidence vault")]
+WORLD_LABEL = {"team": "Build the team", "orders": "Write the orders"}   # the World's words for stage() steps
 WORLD_HOW = {"team": "Add your agents on the Command map (one coordinator, a builder and an independent evaluator), then press Deploy.",
              "harness": "Press Install the harness. It fits all six pieces in this repo and keeps your old settings as a backup.",
              "run": "In a terminal: python3 agent_company.py start . --tool claude --run (or codex, gemini). Or with no window, one instruction at a time: python3 agent_company.py run . --tool claude",
              "orders": "Write a mission on the Command map (the owner's words, a branch, tests, and a stop point that says Don't merge), then press Deploy."}
+
+
+# ---- The Harness Marketplace kit, if this repo carries one (read-only). The golden image is one frozen version of the
+# kit's harness; the check below mirrors `golden check` in that kit (tools/golden.py) and changes nothing. A MATCH means the
+# standard files are in place, not that an agent behaves well. The image in the repo is what is compared against, so compare
+# its version and hash with the kit's release when it matters. Recovery drills are read from the kit's ledger as written;
+# `scripts/harness.py check` is what verifies that ledger's chain.
+GOLDEN_IMAGES = ["scripts/golden-image.json", "golden/golden-image.json"]
+_KIT_MAX = 5_000_000
+
+
+def _golden_image_hash(img: dict) -> str:
+    body = {k: v for k, v in img.items() if k != "image_sha"}
+    return hashlib.sha256(json.dumps(body, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()).hexdigest()
+
+
+def _hook_commands(settings: dict) -> list:
+    out = []
+    hooks = settings.get("hooks") if isinstance(settings, dict) else None
+    for groups in (hooks or {}).values() if isinstance(hooks, dict) else []:
+        for g in groups or []:
+            for h in (g.get("hooks", []) if isinstance(g, dict) else []):
+                if isinstance(h, dict) and h.get("command"):
+                    out.append(h["command"])
+    return out
+
+
+def _inside(root: Path, rel: str):
+    """The file at rel, only if it stays inside the repo. An image must never make the World read anything else."""
+    try:
+        p = (root / str(rel)).resolve()
+        p.relative_to(root.resolve())
+        return p
+    except (OSError, ValueError):
+        return None
+
+
+def golden_status(repo: str | Path) -> dict:
+    root = Path(repo)
+    ip = next((root / p for p in GOLDEN_IMAGES if (root / p).is_file()), None)
+    if ip is None:
+        return {"installed": False}
+    base = {"installed": True, "image": str(ip.relative_to(root)), "version": "?", "sha": "", "checked": 0}
+    try:
+        img = json.loads(ip.read_text(encoding="utf-8"))
+        if not isinstance(img, dict):
+            raise ValueError("not an object")
+    except (OSError, ValueError):
+        return {**base, "result": "ALTERED", "drift": ["the golden image file cannot be read as JSON"]}
+    base.update(version=str(img.get("version", "?"))[:20], sha=str(img.get("image_sha", ""))[:12])
+    if img.get("image_sha") != _golden_image_hash(img):
+        return {**base, "result": "ALTERED", "drift": ["the golden image no longer matches its own hash; restore it from the kit's release"]}
+    drift, checked = [], 0
+    locked = img.get("locked") if isinstance(img.get("locked"), dict) else {}
+    for target, want in locked.items():
+        checked += 1
+        p = _inside(root, target)
+        if p is None:
+            drift.append(f"DRIFT {target}")
+        elif not p.is_file():
+            drift.append(f"MISSING {target}")
+        else:
+            try:
+                same = p.stat().st_size <= _KIT_MAX and hashlib.sha256(p.read_bytes()).hexdigest() == want
+            except OSError:
+                same = False
+            if not same:
+                drift.append(f"DRIFT {target}")
+    for options in img.get("required") if isinstance(img.get("required"), list) else []:
+        checked += 1
+        options = options if isinstance(options, list) else [options]
+        if not any((q := _inside(root, o)) is not None and q.exists() for o in options):
+            drift.append("MISSING " + " or ".join(str(o) for o in options))
+    try:
+        sp = root / ".claude" / "settings.json"
+        settings = json.loads(sp.read_text(encoding="utf-8")) if sp.is_file() else {}
+    except (OSError, ValueError):
+        settings = {}
+    perms = settings.get("permissions") if isinstance(settings, dict) else None
+    have_deny = set(perms.get("deny", []) if isinstance(perms, dict) and isinstance(perms.get("deny", []), list) else [])
+    for rule in img.get("deny") if isinstance(img.get("deny"), list) else []:
+        checked += 1
+        if rule not in have_deny:
+            drift.append(f"DRIFT deny {rule}")
+    have_hooks = _hook_commands(settings)
+    for cmd in img.get("hooks") if isinstance(img.get("hooks"), list) else []:
+        checked += 1
+        if cmd not in have_hooks:
+            drift.append(f"DRIFT hook {cmd}")
+    return {**base, "checked": checked, "result": "DRIFT" if drift else "MATCH", "drift": [str(d)[:160] for d in drift[:30]]}
+
+
+def recovery_status(repo: str | Path) -> dict:
+    lp = Path(repo) / ".harness" / "ledger.jsonl"
+    drills, last = 0, None
+    try:
+        if lp.is_file() and lp.stat().st_size <= _KIT_MAX:
+            for line in lp.read_text(encoding="utf-8", errors="replace").splitlines():
+                try:
+                    e = json.loads(line)
+                except ValueError:
+                    continue
+                if isinstance(e, dict) and e.get("type") == "drill":
+                    drills += 1
+                    last = {"result": str(e.get("result", "?"))[:20], "seconds": e.get("seconds") if isinstance(e.get("seconds"), (int, float)) else None,
+                            "ts": str(e.get("ts", ""))[:30], "by": str(e.get("by", "?"))[:60],
+                            "checks_run": e.get("checks_run") if isinstance(e.get("checks_run"), int) else None}
+    except OSError:
+        pass
+    return {"drills": drills, "last": last}
 
 
 def world_state(repo: str | Path) -> dict:
@@ -920,7 +1031,7 @@ def world_state(repo: str | Path) -> dict:
         ok = raw[step]["done"] and (sid != "harness" or hs["committed"])
         state = "locked" if open_seen else ("done" if ok else "next")
         open_seen = open_seen or not ok
-        st = {"id": sid, "name": name, "step": step, "state": state, "how": WORLD_HOW.get(sid, raw[step]["how"])}
+        st = {"id": sid, "name": name, "step": WORLD_LABEL.get(sid, step), "state": state, "how": WORLD_HOW.get(sid, raw[step]["how"])}
         if sid == "harness":
             st["action"] = "install-harness"
             if hs["fitted"] == 6 and not hs["committed"]:
@@ -943,7 +1054,8 @@ def world_state(repo: str | Path) -> dict:
             "orders": {"pending": len(list(inbox.glob("[0-9][0-9][0-9]_*.md"))) if inbox.is_dir() else 0,
                        "done": len(list(done.glob("[0-9][0-9][0-9]_*.md"))) if done.is_dir() else 0},
             "proof": {"sealed": sum(1 for r in recs if r.get("sealed")), "broken": sum(1 for r in recs if not r.get("ok"))},
-            "kill": kill, "read_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
+            "kill": kill, "kit": {"golden": golden_status(root), "recovery": recovery_status(root)},
+            "read_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
 
 
 # ---------------------------------------------------------------- the background runner

@@ -117,6 +117,12 @@ Rules the screen keeps:
 - **The screen can install the harness, but it cannot approve, merge or lift the kill switch.** Those stay with a named person in the terminal, so an agent that reaches the screen cannot release itself.
 - **Nothing loads from the internet.** three.js (MIT) ships in `ui/vendor/three`.
 
+**If the repo also carries the Harness Marketplace kit** (its golden image and runtime pack, kit 1.5.0, which is on a dev branch and not released yet), the World reads two more things, and changes neither:
+- **The Forge card shows the golden image:** its version and hash, and whether the repo matches it, with each drifted or missing item named. It is the same comparison as the kit's own `golden check`. A match means the kit's standard files are in place, not that an agent behaves well.
+- **The kill-switch tower shows the last recovery drill** in the kit's ledger: RECOVERED or FAILED, the seconds it took and who ran it.
+
+Neither changes which of the six steps are done. The World compares against the image file in the repo, so check its version and hash against the kit's release when it matters.
+
 ### Running with no window
 
 ```sh
@@ -427,8 +433,8 @@ The council is a self-evaluation. It never replaces the tests, `seal`, the owner
 ## Tests
 
 ```sh
-python3 -m unittest discover -s tests -v       # 133 tests (and 590 guard and rule cases): launch, doctor, smoke, import-agents, CLI, deploy rules, local server, seal/verify and tampering, pull-request match, harness install and commit, guard decisions, hostile-command guard cases, pre-push, claim words, Review Council scoring and sealing, sealed cards and trust, the World's state and limits, the background runner
-                                               # 3 of the 133 (Ed25519 signing) need ssh-keygen on the PATH
+python3 -m unittest discover -s tests -v       # 138 tests (and 590 guard and rule cases): launch, doctor, smoke, import-agents, CLI, deploy rules, local server, seal/verify and tampering, pull-request match, harness install and commit, guard decisions, hostile-command guard cases, pre-push, claim words, Review Council scoring and sealing, sealed cards and trust, the World's state and limits, the kit readout (golden image, recovery drill), the background runner
+                                               # 3 of the 138 (Ed25519 signing) need ssh-keygen on the PATH
 npm i -D playwright && npx playwright install chromium
 node tests/test_ui.mjs                         # 45 browser checks of the Command map and the earlier Guild screen, including local mode on a real repo (harness install, record verification)
 ```
