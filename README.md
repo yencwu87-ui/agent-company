@@ -619,7 +619,8 @@ The council is a self-evaluation. It never replaces the tests, `seal`, the owner
 ## Tests
 
 ```sh
-python3 -m unittest discover -s tests -v       # 99 tests (and 590 guard and rule cases): launch, doctor, smoke, import-agents, CLI, deploy rules, local server, seal/verify and tampering, pull-request match, harness install, guard decisions, hostile-command guard cases, pre-push, claim words, Review Council scoring and sealing, sealed cards and trust
+python3 -m unittest discover -s tests -v       # 133 tests (and 590 guard and rule cases): launch, doctor, smoke, import-agents, CLI, deploy rules, local server, seal/verify and tampering, pull-request match, harness install and commit, guard decisions, hostile-command guard cases, pre-push, claim words, Review Council scoring and sealing, sealed cards and trust, the World's state and limits, the background runner
+                                               # 3 of the 133 (Ed25519 signing) need ssh-keygen on the PATH
 npm i -D playwright && npx playwright install chromium
 node tests/test_ui.mjs                         # 45 browser checks, including local mode on a real repo (harness install, record verification, full XP only when verified): Command map, Guild, trust credits, worlds, proof/XP, handheld on a phone
 ```

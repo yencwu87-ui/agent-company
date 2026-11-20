@@ -96,10 +96,10 @@ The Evidence vault counts sealed records, and shows a broken one in red if a rec
 | 5 | The screen cannot approve, merge, seal or lift the kill switch | Met: `tests/test_world.py` |
 | 6 | Nothing loads from the internet | Met for the World. Not met for the Command map (fonts) |
 | 7 | Usable on a phone | Met at 390 px wide: no sideways scroll |
-| 8 | Every automated check passes | 113 of 116 unit tests, 45 of 45 browser checks and the claims check pass. The other 3 unit tests need `ssh-keygen`, which the build sandbox did not have |
+| 8 | Every automated check passes | 133 of 133 unit tests pass in a Linux shell on the owner's Mac. In the build sandbox 130 of 133 pass; the other 3 need `ssh-keygen`, which it did not have. 45 of 45 browser checks (build sandbox) and the claims check pass. Not yet run natively on macOS |
 | 9 | A real agent team runs the loop on the owner's machine | Partly: real agents ran the loop in a cloud sandbox (below), without the tool-call guard and without a GitHub pull request. Not yet run on the owner's machine |
 
-Rows 6, 8 and 9 are open. Until they close, treat the World as tested in a sandbox, not proven in use.
+Rows 6 and 9 are open, and row 8 has not been run natively on macOS. Until they close, treat the World as tested in a sandbox, not proven in use.
 
 ## A real agent run (20 Nov 2026, cloud sandbox)
 
