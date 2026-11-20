@@ -1,0 +1,35 @@
+1
+00:00:00,550 --> 00:00:05,350
+Putting an AI agent to work still feels like trial and error.
+
+2
+00:00:05,350 --> 00:00:10,433
+Work goes missing, and nobody can show what was done.
+
+3
+00:00:10,450 --> 00:00:14,150
+Agent Company gives the work a line, with six stations.
+
+4
+00:00:14,150 --> 00:00:18,450
+First a project. Then a team, with one job each.
+
+5
+00:00:18,450 --> 00:00:23,467
+Then the harness: six limits, fitted with one click.
+
+6
+00:00:25,250 --> 00:00:31,667
+Nothing skips ahead. A station opens only when the one before it is done.
+
+7
+00:00:32,850 --> 00:00:38,267
+Written orders go in, and one coordinator starts the line.
+
+8
+00:00:41,150 --> 00:00:46,033
+The screen shows only what is really in your repo.
+
+9
+00:00:50,850 --> 00:00:54,800
+Then the proof is sealed. Merging stays with you.

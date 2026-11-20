@@ -5,7 +5,8 @@
 You stay the owner: you set direction, merge and decide. Agents do the work, one job each, from written orders, with an independent reviewer and an evidence trail. Agent Company gives you two ways to set that up:
 
 - **Command map**: a drag-and-drop planning board for people who want the plain version.
-- **Guild mode**: the same rules played as a game. You forge agent characters, fit them with the OpenProof harness, deploy them on a map and level them up, but only on proven work. It plays on a laptop or a phone, including a handheld mode with a D-pad.
+- **The World** (the start screen): a live 3D view of your project. Every building is one step of the deployment lifecycle and shows what is really in your repo. Steps unlock strictly in order, and the Forge's button installs the harness for real.
+- **Guild mode** (classic, being replaced by the World): the same rules played as a game. You forge agent characters, fit them with the OpenProof harness, deploy them on a map and level them up, but only on proven work. It plays on a laptop or a phone, including a handheld mode with a D-pad.
 
 Both write real files into your repository, and those files are what your agents work from. It works with Claude Code, Codex, Gemini CLI, Cursor and Copilot. It needs Python 3.9+ and nothing else (standard library only) and is MIT licensed.
 
@@ -16,6 +17,8 @@ Both write real files into your repository, and those files are what your agents
 | | |
 |---|---|
 | [**Feature film**](docs/media/agent-company-feature-film.mp4) (77 s) | Told with three anatomy figures, plus short live demos of the real game: the Forge fitting the harness, deploying on the map (a refused drop, the green ring, the horn), the dispatch line, proving a quest and levelling up, trust credits and containment, and the worlds on a laptop and a phone. Captions in [`.srt`](docs/media/agent-company-feature-film.srt). |
+| [**The World, start to finish**](docs/media/world-demo.mp4) (2 min 13 s) | A recorded run of the live World against a real project folder: launch, team, harness, orders, coordinator, proof. Captions say where the recording stands in for an AI agent. Guide: [docs/WORLD-GUIDE.md](docs/WORLD-GUIDE.md). |
+| [**The Line**](docs/media/the-line.mp4) (65 s) | A short narrated film, made in code, on why the World exists: loose agents and lost work, then six stations that only open in order. An illustration, not a recording of the product. Subtitles in [`.srt`](docs/media/the-line_subtitles_en.srt); source and one-command build in [`film-source/the-line/`](film-source/the-line/). |
 | [**Fig 1: the Forge**](docs/media/forge-anatomy.html) | Interactive isometric figure: an agent rides past six fitting stations, each lowering one harness piece, and the deploy gate lifts only at six of six. Click to skip a piece and watch the gate refuse. |
 | [**Fig 2: the dispatch line**](docs/media/agent-company-anatomy.html) | Interactive isometric figure: a mission rides one rail from the inbox through the builder's press, the challenger's probe and the evaluator's gauge to the owner's desk. Click to make the owner step away. |
 | [**Fig 3: trust credits**](docs/media/trust-credits-anatomy.html) | Interactive isometric figure: the proof press and OpenProof seal, the outcome rack, the credit sight-glass, the credibility gauge and the containment cage. Click to jump to an escaped defect. |
@@ -52,7 +55,7 @@ Open the figures from a downloaded copy of the repo, since GitHub shows HTML fil
 2. Double-click the start file for your computer:
    - **Mac:** **Start Agent Company.command**. The first time, macOS may ask: right-click it, choose **Open**, then **Open** again.
    - **Windows:** **Start Agent Company.bat**.
-3. Your browser opens the Guild. The **Start here** bar at the top shows where you are, and the one next step.
+3. Your browser opens the World. The bar at the bottom shows the one next step, and the building it belongs to is ringed in orange.
 
 It creates your first project folder at `~/agent-company-projects/my-first-team`, sets up git and Agent Company there, and opens the game. If something on your computer is missing, it says exactly what to install, in one line.
 
@@ -92,6 +95,33 @@ python3 agent_company.py check  ~/code/my-project
 You can also open `ui/guild.html` directly in a browser to try it with no install. It starts with a demo guild. In that mode, deploy shows the files for you to copy instead of writing them.
 
 ---
+
+## The World
+
+```sh
+python3 agent_company.py world ~/code/my-project
+```
+
+The World is drawn from the repository every 3 seconds (`GET /api/world`), so what you see is what is there.
+
+| Building | Shows | Done when |
+|---|---|---|
+| 1 Project depot | project name and version | `docs/ops/` exists |
+| 2 Team quarters | one figure per agent, with role and tool | a team is saved |
+| 3 The Forge | each of the six harness pieces, lit only if it is enforced | 6 of 6 are enforced; **Install the harness** does it from the screen |
+| 4 Dispatch office | orders waiting and done | an instruction is in the inbox |
+| 5 Coordinator tower | whether the coordinator has started | `STATUS.md` carries a real time |
+| 6 Evidence vault | sealed and broken proof records | a record is sealed |
+| Kill-switch tower | green when clear; red, with who and why, when `.harness/KILL` exists | n/a |
+
+Rules the screen keeps:
+- **No skipping.** A step shows as done only when every step before it is done.
+- **The screen can install the harness, but it cannot approve, merge or lift the kill switch.** Those stay with a named person in the terminal, so an agent that reaches the screen cannot release itself.
+- **Nothing loads from the internet.** three.js (MIT) ships in `ui/vendor/three`.
+
+Teams and orders are written on the Command map; the World links to it and the Command map links back.
+
+**Step-by-step guide, with a recorded run and the checks behind it:** [docs/WORLD-GUIDE.md](docs/WORLD-GUIDE.md). The Guild stays available (`agent_company.py guild`) until the World can do everything it does.
 
 ## Why a game?
 
@@ -474,9 +504,10 @@ Everything lives in `docs/ops/` of your project:
 
 ```text
 python3 agent_company.py init   [repo]                  create docs/ops (never overwrites)
-python3 agent_company.py guild  [repo] [--port N] [--no-browser]   Guild mode (the game)
+python3 agent_company.py world  [repo] [--port N] [--no-browser]   the live 3D world (the start screen)
+python3 agent_company.py guild  [repo] [--port N] [--no-browser]   Guild mode (classic)
 python3 agent_company.py ui     [repo] [--port N] [--no-browser]   Command map
-python3 agent_company.py launch [folder]                START HERE: folder, git and setup, then the Guild opens
+python3 agent_company.py launch [folder]                START HERE: folder, git and setup, then the World opens
 python3 agent_company.py doctor [repo]                  plain-language checks of your computer and project, each with its fix
 python3 agent_company.py smoke  [repo]                  one PASS/FAIL gate (doctor, instructions, ledger, harness); dated report in outbox/
 python3 agent_company.py import-agents <folder> [--repo R] [--origin TOOL]   Claude Code subagents become Guild characters
@@ -594,6 +625,7 @@ The browser tests cover:
 agent_company.py      the CLI and the local server (standard library only)
 council.py            the Review Council: seats, brief, scoring, agent files
 harness/              guard.py (Claude Code hook) and pre-push, installed by `harness`
+ui/world.html         the World: live 3D view of the repo (three.js in ui/vendor/three)
 ui/guild.html         Guild mode: one self-contained page
 ui/command.html       the Command map
 ui/anatomy.html       interactive figure: how work moves down the dispatch line
