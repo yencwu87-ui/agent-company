@@ -85,11 +85,40 @@ The Evidence vault counts sealed records, and shows a broken one in red if a rec
 | 1 | One command takes a new user to the live World | Met: `launch` run for real in the recording |
 | 2 | The screen shows only what is in the repo | Met: at 12 points in the recording the repo was read separately and matched the screen |
 | 3 | Steps cannot be skipped | Met: `tests/test_world.py` |
-| 4 | Every step can be finished from the on-screen instructions | Met for steps 1 to 4 and 6. Step 5 was a stand-in: the recording wrote the status line itself, and no AI agent ran |
+| 4 | Every step can be finished from the on-screen instructions | Met in a sandbox: in the real agent run below, a coordinator agent wrote the status report and an evaluator agent ran `seal`. (In the recording, step 5 was a stand-in.) |
 | 5 | The screen cannot approve, merge, seal or lift the kill switch | Met: `tests/test_world.py` |
 | 6 | Nothing loads from the internet | Met for the World. Not met for the Command map (fonts) |
 | 7 | Usable on a phone | Met at 390 px wide: no sideways scroll |
 | 8 | Every automated check passes | 113 of 116 unit tests, 45 of 45 browser checks and the claims check pass. The other 3 unit tests need `ssh-keygen`, which the build sandbox did not have |
-| 9 | A real agent team runs the loop on the owner's machine | Not done yet |
+| 9 | A real agent team runs the loop on the owner's machine | Partly: real agents ran the loop in a cloud sandbox (below), without the tool-call guard and without a GitHub pull request. Not yet run on the owner's machine |
 
-Rows 4, 6, 8 and 9 are open. Until they close, treat the World as tested in a sandbox, not proven in use.
+Rows 6, 8 and 9 are open. Until they close, treat the World as tested in a sandbox, not proven in use.
+
+## A real agent run (20 Nov 2026, cloud sandbox)
+
+Three separate AI agents ran one instruction through the loop in a throwaway project, each started with only its role and the files in `docs/ops/`. The World showed each change as it landed.
+
+![The World after the real run](screens/world-real-run.png)
+
+| Role | What the agent did | Checked how |
+|---|---|---|
+| Coordinator | Read the standing orders, made the worktree and branch, wrote the builder's brief and `STATUS.md` | `git worktree list`, `git ls-remote origin` |
+| Builder | Committed the failing tests (1 error), then the code (10 of 10 pass), pushed its own branch only | Two commits, one file each; `origin/main` unchanged |
+| Evaluator | Fresh clone; re-ran both commits; changed the code five ways to confirm the tests catch it; 32 counter-examples, every Unicode code point and 200,000 random strings against the written rule: 0 defects. Approved and ran `seal` | Record `001-0ab87dc28830` verifies as SEALED |
+| Coordinator | Re-checked every claim against the remote, kept the instruction in the inbox because nothing is merged, and listed the merge and five decisions under "Needs the owner" | `git merge-base --is-ancestor` exits 1 |
+
+Afterwards a push of the branch onto `main` was tried on purpose. The pre-push hook refused it: "push to the protected branch 'main' refused".
+
+**What this run does not show**
+- **The tool-call guard was not active for these agents.** They were sub-agents of another session, which does not load this project's `.claude/settings.json`. Only the git pre-push hook was enforcing. A run with Claude Code started inside the project is still needed.
+- **No GitHub pull request.** The remote was a plain git folder, so the evaluator's brief and verdict stood in for the pull-request page, and `verify` shows that one line unticked.
+- **One vendor.** Builder and evaluator were the same model family.
+- **Not the owner's machine, and no merge.** The owner's merge is the last step and was not taken.
+
+**What the agents found (open, for the owner)**
+1. **The harness files are not committed by the install** (`AGENTS.md`, `.claude/`, `docs/ops/harness/`). A worktree made from `main` does not contain them, so a builder session started inside its worktree would load no guard hooks. The shared git pre-push hook still applies.
+2. **The allowlist is empty after install** when the team comes from the Command map.
+3. **"Outbox" is ambiguous** between the main folder and the worktree's copy. This run used the main folder.
+4. **Step 6 of the standing orders reuses the builder's file name** (`001_report.md`) for the coordinator's closing report.
+5. **The verdict file cannot name the sealed record**, because sealing happens after the verdict is written.
+6. **`ROLES.md` is left unfilled** by a Command map deploy.
