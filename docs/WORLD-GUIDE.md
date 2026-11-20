@@ -4,6 +4,8 @@ The World is Agent Company's start screen. It is a live 3D view of one project f
 
 **Watch it first:** [`docs/media/world-demo.mp4`](media/world-demo.mp4) (2 min 13 s) is a recording of the steps below, driven in a real browser against a real project folder. Its captions say where the recording stands in for something only you can do.
 
+**For the idea in one minute:** [`docs/media/the-line.mp4`](media/the-line.mp4) is a short narrated film. It is an illustration, not a recording.
+
 ## What you need
 
 - Python 3.9 or later, and git. Nothing else is installed, and the World loads nothing from the internet.

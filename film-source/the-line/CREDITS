@@ -1,0 +1,12 @@
+The Line: a film about the Agent Company World, in the Low-poly Isometric Island style
+
+3D scene, animation: original code (world.js, main.js, story.js), drawn with three.js (MIT). No textures, no models, no images.
+Post-processing: post.js, copied from the Lemo-Opuscar library's lowpoly-island demo (github.com/lemomo-ai/lemo-opuscar, Copyright (c) 2026 Lemomo (LemoLab); demo code is under the MIT License per that repository's LICENSE, rule 4).
+Music: original, synthesised in code (mix.py). Every note is generated from the film's own events.
+Sound effects and ambience: original, synthesised in code (mix.py).
+Voice: Kokoro TTS v1.0, model Kokoro-82M by hexgrad (Apache-2.0), run with kokoro-onnx (MIT). Voice: af_heart (American English, synthetic).
+Fonts: Quicksand (Andrew Paglinawan) and Josefin Sans (Santiago Orozco), both SIL Open Font License 1.1, from the Fontsource npm packages into fonts/.
+Style: Lemo-Opuscar "Low-poly Isometric Island" style guide. References studied for grammar only, nothing copied.
+
+The narration was not checked by speech-to-text: the check model could not be downloaded where the film was built. Listen to it once before publishing.
+This film is an illustration, not a recording of the product. The recorded run is docs/media/world-demo.mp4 in the agent-company repository.
