@@ -371,3 +371,12 @@ class WorldKitReview(_KitRepo, unittest.TestCase):
         self.assertLess(ac.world_state(self.repo)["harness"]["fitted"], 6)
         sp.write_text("[1, 2]", encoding="utf-8")                      # an odd settings file must not take the screen down
         self.assertEqual(ac.world_state(self.repo)["harness"]["fitted"], 0)
+
+    def test_a_required_entry_must_be_a_file_as_the_kit_itself_requires(self):
+        self.scaffold()
+        (self.repo / "DECISIONS.md").unlink(); (self.repo / "DECISIONS.md").mkdir()
+        g = self.kit()["golden"]
+        self.assertEqual((g["result"], g["drift"]), ("DRIFT", ["MISSING DECISIONS.md"]))
+        sp = self.repo / ".claude/settings.json"
+        s = json.loads(sp.read_text(encoding="utf-8")); sp.write_text(json.dumps({**s, "disableAllHooks": True}), encoding="utf-8")
+        self.assertIn("DRIFT hook python3 scripts/runtime.py gate", self.kit()["golden"]["drift"])   # worded as the kit words it
