@@ -1040,7 +1040,7 @@ def golden_status(repo: str | Path) -> dict:
     for options in required:
         checked += 1
         options = options if isinstance(options, list) else [options]
-        if not any((q := _inside(root, o)) is not None and q.exists() for o in options):
+        if not any((q := _inside(root, o)) is not None and q.is_file() for o in options):
             drift.append("MISSING " + " or ".join(str(o) for o in options))
     settings = _claude_settings(root)
     have_deny = set(_deny_rules(settings))
@@ -1052,7 +1052,7 @@ def golden_status(repo: str | Path) -> dict:
     for cmd in hooks:
         checked += 1
         if off or not isinstance(cmd, str) or not _gate_hook_ok(settings, cmd):
-            drift.append(f"DRIFT hook {cmd}" + (" (all hooks are disabled)" if off else ""))
+            drift.append(f"DRIFT hook {cmd}")
     return {**base, "checked": checked, "result": "DRIFT" if drift else "MATCH", "drift": [str(d)[:160] for d in drift[:30]]}
 
 
