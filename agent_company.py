@@ -39,6 +39,8 @@ import time
 import re
 import secrets
 import shutil
+import stat
+import math
 import subprocess
 import sys
 import threading
@@ -580,7 +582,7 @@ def _json_inside(root: Path, rel: str):
         return None
     try:
         return json.loads(t)
-    except ValueError:
+    except (ValueError, RecursionError):            # deeply nested junk must not take the screen down
         return None
 
 
@@ -599,16 +601,18 @@ def _hooks_disabled(root: Path) -> bool:
 
 
 def _hook_groups(settings: dict, event: str) -> list:
-    """[(matcher, [command hooks])] for one event, whatever shape the file is in. Only type "command" hooks can run a guard."""
+    """[(matcher, [command hooks])] for one event, whatever shape the file is in. A hook counts only as exactly
+    {"type": "command", "command": ...} in a group with nothing but a matcher and hooks: any other key (async, timeout,
+    a condition) could keep it from blocking a call."""
     hooks = settings.get("hooks") if isinstance(settings, dict) else None
     groups = hooks.get(event) if isinstance(hooks, dict) else None
     out = []
     for g in groups if isinstance(groups, list) else []:
-        if not isinstance(g, dict):
+        if not isinstance(g, dict) or set(g) - {"matcher", "hooks"}:
             continue
         inner = g.get("hooks")
         cmds = [h for h in (inner if isinstance(inner, list) else [])
-                if isinstance(h, dict) and isinstance(h.get("command"), str) and h.get("type", "command") == "command"]
+                if isinstance(h, dict) and set(h) == {"type", "command"} and h["type"] == "command" and isinstance(h["command"], str)]
         m = g.get("matcher", "")
         out.append((m if isinstance(m, str) else "\x00", cmds))
     return out
@@ -620,10 +624,52 @@ def _deny_rules(settings: dict) -> list:
     return [d for d in deny if isinstance(d, str)] if isinstance(deny, list) else []
 
 
+def _main_checkout(root: Path) -> Path:
+    """The main checkout `root` belongs to, read from .git without running git (the kit's runtime.py does the same).
+    Raises when a worktree pointer cannot be followed, and callers treat that as "cannot tell"."""
+    g = Path(root) / ".git"
+    if g.is_dir() or not os.path.lexists(g):
+        return Path(root)
+    first = g.read_text(encoding="utf-8").splitlines()[0].strip() if g.stat().st_size < 10_000 else ""
+    if not first.startswith("gitdir:"):
+        raise ValueError(f"{g} is not a git folder or a worktree pointer")
+    gitdir = Path(first[len("gitdir:"):].strip())
+    gitdir = (gitdir if gitdir.is_absolute() else Path(root) / gitdir).resolve()
+    cd = gitdir / "commondir"
+    if not cd.is_file():
+        return Path(root)
+    common = (gitdir / cd.read_text(encoding="utf-8").splitlines()[0].strip()).resolve()
+    return common.parent if common.name == ".git" else Path(root)
+
+
 def kill_file(root: Path) -> Path | None:
-    """.harness/KILL in any form (a file with any content, a folder, a link) means stopped. Only its absence means clear."""
-    kp = Path(root) / ".harness" / "KILL"
-    return kp if os.path.lexists(kp) else None
+    """The entry that stops the agents, or None. .harness/KILL in any form (a file with any content, a folder, a link)
+    means stopped, in this checkout or in the main checkout it belongs to. If the main checkout cannot be worked out,
+    the answer is the .git entry itself: unknown must never read as clear."""
+    root = Path(root)
+    try:
+        places = [root, _main_checkout(root)]
+    except (OSError, ValueError, IndexError):
+        return root / ".git"
+    for r in places:
+        kp = r / ".harness" / "KILL"
+        if os.path.lexists(kp):
+            return kp
+    return None
+
+
+def _file_inside(path: Path, bases, cap: int = 1_000_000):
+    """Bytes of a regular file (never a pipe or device) that sits inside one of `bases`. Else None."""
+    try:
+        rp = Path(path).resolve()
+        if not any(rp == b or b in rp.parents for b in (Path(x).resolve() for x in bases)):
+            return None
+        st = rp.stat()
+        if not stat.S_ISREG(st.st_mode) or st.st_size > cap:
+            return None
+        return rp.read_bytes()
+    except (OSError, ValueError, RuntimeError):
+        return None
 
 
 def harness_status(repo) -> dict:
@@ -631,17 +677,24 @@ def harness_status(repo) -> dict:
     hd = ops_dir(root) / "harness"
     st = _claude_settings(root)
     off = _hooks_disabled(root)                       # with all hooks disabled, nothing below is enforced
-    is_guard = lambda h: "docs/ops/harness/guard.py" in h["command"]
-    is_log = lambda h: "guard.py\" --log" in h["command"] or "guard.py --log" in h["command"]
+    is_guard = lambda h: h["command"] in (GUARD_CMD, GUARD_CMD + " --log")     # the exact commands the installer writes
+    is_log = lambda h: h["command"] == GUARD_CMD + " --log"
     pre_groups = [] if off else _hook_groups(st, "PreToolUse")
     pre = [h for _, hs in pre_groups for h in hs if is_guard(h) and "--log" not in h["command"]]
     matchers = " ".join(m for m, hs in pre_groups if any(is_guard(h) for h in hs))
     post = [] if off else [h for _, hs in _hook_groups(st, "PostToolUse") for h in hs if is_log(h)]
     deny = _deny_rules(st)
-    guard = (hd / "guard.py").exists()
-    hooks_dir = _git(root, "rev-parse", "--git-path", "hooks")
-    prepush = bool(hooks_dir) and (Path(hooks_dir) if Path(hooks_dir).is_absolute() else root / hooks_dir).joinpath("pre-push").exists() and \
-        "Agent Company harness" in (Path(hooks_dir) if Path(hooks_dir).is_absolute() else root / hooks_dir).joinpath("pre-push").read_text(errors="replace")
+    shipped = _file_inside(HARNESS_SRC / "guard.py", [HARNESS_SRC])
+    guard = shipped is not None and _file_inside(hd / "guard.py", [root]) == shipped      # the guard itself, not a file of that name
+    prepush = False
+    try:
+        hooks_dir = _git(root, "rev-parse", "--git-path", "hooks")
+        if hooks_dir:
+            hp = (Path(hooks_dir) if Path(hooks_dir).is_absolute() else root / hooks_dir) / "pre-push"
+            body = _file_inside(hp, [root, _main_checkout(root)])                          # never a hook kept outside the repository
+            prepush = body is not None and b"Agent Company harness" in body
+    except (OSError, ValueError, IndexError):
+        prepush = False
     pieces = {
         "helm": guard and bool(pre) and "Edit" in matchers,
         "chest": guard and all(d in deny for d in DENY[4:9]),
@@ -1011,13 +1064,21 @@ def golden_status(repo: str | Path) -> dict:
     rel = next((p for p in GOLDEN_IMAGES if os.path.lexists(root / p)), None)
     if rel is None:
         return {"installed": False}
-    base = {"installed": True, "image": rel, "version": "?", "sha": "", "checked": 0}
+    base = {"installed": True, "image": rel, "version": "?", "sha": "", "checked": 0, "pinned": False}
     img = _json_inside(root, rel)
     if not isinstance(img, dict):
         return {**base, "result": "ALTERED", "drift": ["the golden image cannot be read as a JSON file inside this repository"]}
     base.update(version=str(img.get("version", "?"))[:20], sha=str(img.get("image_sha", ""))[:12])
-    if img.get("image_sha") != _golden_image_hash(img):
+    try:
+        own = _golden_image_hash(img)
+    except (ValueError, TypeError, RecursionError):                       # UnicodeEncodeError is a ValueError
+        own = None
+    if own is None or img.get("image_sha") != own:
         return {**base, "result": "ALTERED", "drift": ["the golden image no longer matches its own hash; restore it from the kit's release"]}
+    pin = re.search(r"--expect-sha ([0-9a-f]{64})", _read_inside(root, ".github/workflows/harness.yml") or "")
+    base["pinned"] = bool(pin)
+    if pin and pin.group(1) != img["image_sha"]:
+        return {**base, "result": "ALTERED", "drift": ["this is not the image pinned in .github/workflows/harness.yml; restore it from the kit's release"]}
     locked, required, deny, hooks = img.get("locked"), img.get("required"), img.get("deny"), img.get("hooks")
     if not (isinstance(locked, dict) and isinstance(required, list) and isinstance(deny, list) and isinstance(hooks, list)) \
             or not (locked and required and deny and hooks):
@@ -1056,17 +1117,37 @@ def golden_status(repo: str | Path) -> dict:
     return {**base, "checked": checked, "result": "DRIFT" if drift else "MATCH", "drift": [str(d)[:160] for d in drift[:30]]}
 
 
+def _ledger_entry_hash(e: dict) -> str:
+    body = {k: v for k, v in e.items() if k != "hash"}
+    return hashlib.sha256(json.dumps(body, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()).hexdigest()
+
+
 def recovery_status(repo: str | Path) -> dict:
-    """The last drill line in the kit's ledger, as written. The chain is not verified here: `scripts/harness.py check` does that."""
-    drills, last = 0, None
-    for line in (_read_inside(Path(repo), ".harness/ledger.jsonl", _KIT_MAX) or "").splitlines():
+    """The last drill in the kit's ledger, shown only when every line reads and the hash chain holds, as the kit's own
+    `runtime.py status` requires. Otherwise `untrusted` says why and no drill is shown: a failed or forged line must
+    never turn into "none on record" or a green result."""
+    lp = Path(repo) / ".harness" / "ledger.jsonl"
+    none = {"drills": 0, "last": None}
+    if not os.path.lexists(lp):
+        return none
+    text = _read_inside(Path(repo), ".harness/ledger.jsonl", _KIT_MAX)
+    if text is None:
+        return {**none, "untrusted": "the ledger cannot be read (not a file inside this repository, too large, or not UTF-8)"}
+    drills, last, prev = 0, None, "0" * 64
+    for i, line in enumerate((l for l in text.splitlines() if l.strip()), 1):
         try:
             e = json.loads(line)
-        except ValueError:
-            continue
-        if isinstance(e, dict) and e.get("type") == "drill":
+            ok = isinstance(e, dict) and e.get("prev") == prev and e.get("seq") == i and e.get("hash") == _ledger_entry_hash(e)
+        except (ValueError, TypeError, RecursionError):
+            ok = False
+        if not ok:
+            return {**none, "untrusted": f"the ledger's chain is broken at line {i}"}
+        prev = e["hash"]
+        if e.get("type") == "drill":
             drills += 1
-            last = {"result": str(e.get("result", "?"))[:20], "seconds": e.get("seconds") if isinstance(e.get("seconds"), (int, float)) else None,
+            sec = e.get("seconds")
+            last = {"result": str(e.get("result", "?"))[:20],
+                    "seconds": sec if isinstance(sec, (int, float)) and not isinstance(sec, bool) and math.isfinite(sec) else None,
                     "ts": str(e.get("ts", ""))[:30], "by": str(e.get("by", "?"))[:60],
                     "checks_run": e.get("checks_run") if isinstance(e.get("checks_run"), int) else None}
     return {"drills": drills, "last": last}
@@ -1095,8 +1176,9 @@ def world_state(repo: str | Path) -> dict:
     team = team_of(ops)
     recs = [verify_record(root, l["id"]) for l in _ledger(root) if l.get("id")][-50:]
     kill = {"on": False}
-    if kill_file(root) is not None:
-        k = _json_inside(root, ".harness/KILL")
+    kf = kill_file(root)
+    if kf is not None:
+        k = _json_inside(kf.parent.parent, ".harness/KILL") if kf.name == "KILL" else {"reason": "cannot tell: this checkout's .git cannot be followed to its repository"}
         k = k if isinstance(k, dict) else {}
         kill = {"on": True, "by": str(k.get("by", "?"))[:60], "reason": str(k.get("reason", "KILL file present"))[:200], "ts": str(k.get("ts", ""))[:30]}
     inbox, done = ops / "inbox", ops / "done"
@@ -1137,7 +1219,9 @@ def runner_status(repo) -> dict:
     p = _runner_file(Path(repo).resolve())
     try:
         st = json.loads(p.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
+    except (OSError, ValueError, RecursionError):
+        return {"state": "never"}
+    if not isinstance(st, dict):
         return {"state": "never"}
     if st.get("state") in ("running", "starting") and not _alive(st.get("supervisor")):
         st["state"] = "lost"                               # its supervisor is gone, so nothing is watching it

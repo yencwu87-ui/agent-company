@@ -308,7 +308,8 @@ class WorldKitReview(_KitRepo, unittest.TestCase):
         k = self.kit()
         self.assertNotIn("PRIVATE", json.dumps(k)); self.assertNotIn("SECRET", json.dumps(k))
         self.assertEqual(k["golden"]["result"], "ALTERED")
-        self.assertEqual(k["recovery"], {"drills": 0, "last": None})
+        self.assertEqual((k["recovery"]["drills"], k["recovery"]["last"]), (0, None))
+        self.assertTrue(k["recovery"]["untrusted"])                     # and it says the ledger was not read, not "none on record"
         # settings linked outside the repo count as no settings at all
         (self.repo / "scripts/golden-image.json").unlink(); (self.repo / ".harness/ledger.jsonl").unlink(); self.scaffold()
         good = (self.repo / ".claude/settings.json").read_text(encoding="utf-8")

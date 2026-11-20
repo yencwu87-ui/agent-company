@@ -117,11 +117,16 @@ Rules the screen keeps:
 - **The screen can install the harness, but it cannot approve, merge or lift the kill switch.** Those stay with a named person in the terminal, so an agent that reaches the screen cannot release itself.
 - **Nothing loads from the internet.** three.js (MIT) ships in `ui/vendor/three`.
 
-**If the repo also carries the Harness Marketplace kit** (its golden image and runtime pack, kit 1.5.0, which is on a dev branch and not released yet), the World reads two more things, and changes neither:
-- **The Forge card shows the golden image:** its version and hash, and whether the repo matches it, with each drifted or missing item named. It makes the comparison the kit's own `golden check` makes, and is stricter in three ways: the kill-switch hook must be a command hook under `PreToolUse` that matches every tool, disabled hooks count as drift, and an image that lists nothing is refused. A match means the kit's standard files are in place, not that an agent behaves well.
-- **The kill-switch tower shows the last recovery drill** in the kit's ledger: RECOVERED or FAILED, the seconds it took and who ran it. It is shown as written; the ledger's chain is checked by the kit's `harness.py check`, not on screen.
+**If the repo also carries the Harness Marketplace kit** (its golden image and runtime pack, kit 1.5.1, which is on a dev branch and not released), the World reads three more things, and changes none of them:
+- **The Forge card shows the golden image:** its version and hash, whether the repo matches it, and each drifted or missing item by name. It applies the same rules as the kit's own `golden check`. A match means the kit's standard files are in place, not that an agent behaves well.
+- **It says whether the image is pinned.** If the repo's CI workflow carries the kit's `--expect-sha` hash, the image must be that one, or the card says ALTERED. With no pin the card says "not pinned": the World then compares with the image file in the repo, and an image that was edited and hashed again is not detected.
+- **The kill-switch tower shows the last recovery drill** in the kit's ledger, only when the ledger's hash chain holds. Otherwise it says the drill is not shown, and why.
 
-Neither changes which of the six steps are done. The World compares against the image file in the repo. An image that someone edits and re-hashes inside the repo is not detected, here or by the kit's own check, so compare its version and hash with the kit's release when it matters. The World reads no file through a link that leaves the repo.
+The kill switch is read from the main checkout too, so a stop set there shows when the World is opened on a linked worktree, and the background runner will not start there. If the World cannot work out which repository a folder belongs to, it shows the switch as on.
+
+None of this changes which of the six steps are done. The World reads no file through a link that leaves the repo. The kit describes its own limits in its `SCOPE-PACK.md`: the pack detects drift and gives a cooperating agent a stop; branch protection and the sandbox are the boundary.
+
+**What opening the World writes.** `world` and `launch` create `docs/ops/` (the inbox, templates and status file) if it is missing, which is step 1. After that the screen writes only through its two harness buttons.
 
 ### Running with no window
 
@@ -433,8 +438,8 @@ The council is a self-evaluation. It never replaces the tests, `seal`, the owner
 ## Tests
 
 ```sh
-python3 -m unittest discover -s tests -v       # 145 tests (and 590 guard and rule cases): launch, doctor, smoke, import-agents, CLI, deploy rules, local server, seal/verify and tampering, pull-request match, harness install and commit, guard decisions, hostile-command guard cases, pre-push, claim words, Review Council scoring and sealing, sealed cards and trust, the World's state and limits, the kit readout (golden image, recovery drill), the background runner
-                                               # 3 of the 145 (Ed25519 signing) need ssh-keygen on the PATH
+python3 -m unittest discover -s tests -v       # 152 tests (and 590 guard and rule cases): launch, doctor, smoke, import-agents, CLI, deploy rules, local server, seal/verify and tampering, pull-request match, harness install and commit, guard decisions, hostile-command guard cases, pre-push, claim words, Review Council scoring and sealing, sealed cards and trust, the World's state and limits, the kit readout (golden image, recovery drill), the background runner
+                                               # 3 of the 152 (Ed25519 signing) need ssh-keygen on the PATH
 npm i -D playwright && npx playwright install chromium
 node tests/test_ui.mjs                         # 45 browser checks of the Command map and the earlier Guild screen, including local mode on a real repo (harness install, record verification)
 ```

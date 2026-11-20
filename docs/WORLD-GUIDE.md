@@ -83,7 +83,7 @@ The Evidence vault counts sealed records, and shows a broken one in red if a rec
 - **The background runner was tested with a stand-in tool,** not a live `claude -p` or `codex exec`. It adds no flag that skips permission checks, so a headless agent may need tools allowed in your settings first.
 - **The Command map loads its fonts from Google Fonts.** With no internet it still works, in a fallback font. The World itself loads nothing from outside.
 - **Characters, proving and training** are still in the Guild (`python3 agent_company.py guild`), which stays until the World can do them.
-- **The audit score and red-team result** are not on the screen yet. The golden image check and the last recovery drill are shown, read-only, when the repo carries the Harness Marketplace kit (1.5.0, on a dev branch, not released).
+- **The audit score and red-team result** are not on the screen yet. The golden image check and the last recovery drill are shown, read-only, when the repo carries the Harness Marketplace kit (1.5.1, on a dev branch, not released).
 
 ## How it was checked
 
@@ -96,7 +96,7 @@ The Evidence vault counts sealed records, and shows a broken one in red if a rec
 | 5 | The screen cannot approve, merge, seal or lift the kill switch | Met: `tests/test_world.py` |
 | 6 | Nothing loads from the internet | Met for the World. Not met for the Command map (fonts) |
 | 7 | Usable on a phone | Met at 390 px wide: no sideways scroll |
-| 8 | Every automated check passes | 133 of 133 unit tests pass in a Linux shell on the owner's Mac. In the build sandbox 130 of 133 pass; the other 3 need `ssh-keygen`, which it did not have. 45 of 45 browser checks (build sandbox) and the claims check pass. Twelve tests were added after that run for the kit readout and an independent review of it (145 now): 142 of 145 pass in the build sandbox, with the same 3 waiting on `ssh-keygen`. Not yet run natively on macOS |
+| 8 | Every automated check passes | 133 of 133 unit tests pass in a Linux shell on the owner's Mac. In the build sandbox 130 of 133 pass; the other 3 need `ssh-keygen`, which it did not have. 45 of 45 browser checks (build sandbox) and the claims check pass. Nineteen tests were added after that run for the kit readout, an independent review and an interrogation of it (152 now): 149 of 152 pass in the build sandbox, with the same 3 waiting on `ssh-keygen`. Not yet run natively on macOS |
 | 9 | A real agent team runs the loop on the owner's machine | Partly: real agents ran the loop in a cloud sandbox (below), without the tool-call guard and without a GitHub pull request. Not yet run on the owner's machine |
 
 Rows 6 and 9 are open, and row 8 has not been run natively on macOS. Until they close, treat the World as tested in a sandbox, not proven in use.
