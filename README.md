@@ -16,6 +16,7 @@ Both write real files into your repository, and those files are what your agents
 | | |
 |---|---|
 | [**The World, start to finish**](docs/media/world-demo.mp4) (2 min 13 s) | A recorded run of the live World against a real project folder: launch, team, harness, orders, coordinator, proof. Captions say where the recording stands in for an AI agent. Guide: [docs/WORLD-GUIDE.md](docs/WORLD-GUIDE.md). |
+| [**Both products in 3D**](https://claude.ai/artifact/7Tus8GCnXPjYbHNH8T17ug) | A clickable 3D showcase of Agent Company and the Harness Marketplace. Each building opens a card of figures read from the two repos' `main` branches on 20 Nov 2026. It is a snapshot and does not refresh itself. |
 | [**The Line**](docs/media/the-line.mp4) (65 s) | A short narrated film, made in code, on why the World exists: loose agents and lost work, then six stations that only open in order. An illustration, not a recording of the product. Subtitles in [`.srt`](docs/media/the-line_subtitles_en.srt); source and one-command build in [`film-source/the-line/`](film-source/the-line/). |
 | [**Fig 1: the Forge**](docs/media/forge-anatomy.html) | Interactive isometric figure: an agent rides past six fitting stations, each lowering one harness piece, and the deploy gate lifts only at six of six. Click to skip a piece and watch the gate refuse. |
 | [**Fig 2: the dispatch line**](docs/media/agent-company-anatomy.html) | Interactive isometric figure: a mission rides one rail from the inbox through the builder's press, the challenger's probe and the evaluator's gauge to the owner's desk. Click to make the owner step away. |
@@ -363,7 +364,7 @@ python3 agent_company.py --version
 4. The evaluator (ideally from a different vendor) reviews from a clean checkout, and the challenger tries to break the work.
 5. You merge. The coordinator moves the instruction to `done/` and writes a report with the evidence.
 6. The evaluator (or you) runs `seal`. The World's Evidence vault then shows the sealed record.
-7. A scheduled watch (the Ranger) reads `outbox/STATUS.md` two or three times a day and tells you only when you're needed.
+7. A watch that you schedule with your own tool reads `outbox/STATUS.md` two or three times a day and tells you only when you're needed. Agent Company defines the role; it does not run the schedule.
 
 ---
 
