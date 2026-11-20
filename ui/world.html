@@ -1,0 +1,279 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agent Company World</title>
+<!-- The live 3D world. Served by `python3 agent_company.py world`. It draws the real state of this repository
+     (GET /api/world) and loads nothing from the internet: three.js ships in ui/vendor/three. -->
+<style>
+  :root{--bg:#efeeea;--ink:#16181d;--mute:#7b7f88;--line:#d8d9dd;--red:#e0553b;--teal:#2fae8c;--orange:#f2875a}
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;overflow:hidden;-webkit-font-smoothing:antialiased}
+  #stage{position:fixed;inset:0}
+  canvas{display:block;touch-action:none}
+  #lines{position:fixed;inset:0;pointer-events:none;z-index:2}
+  header{position:fixed;top:0;left:0;right:0;text-align:center;padding:18px 16px 0;z-index:5;pointer-events:none}
+  .badge{display:inline-flex;align-items:center;gap:7px;background:var(--teal);color:#fff;font-weight:700;font-size:12px;padding:5px 11px;border-radius:7px;letter-spacing:.06em}
+  .badge.demo{background:#8a8f99}.badge.kill{background:var(--red)}
+  .badge i{width:7px;height:7px;border-radius:50%;background:#fff;animation:pulse 1.6s infinite}
+  @keyframes pulse{50%{opacity:.25}}
+  h1{font-family:Georgia,"Times New Roman",serif;font-weight:400;font-size:clamp(28px,4.6vw,50px);margin:8px 0 2px;letter-spacing:-.01em}
+  .sub{color:var(--mute);font-size:14px;margin:0}
+  .chips{position:fixed;z-index:4;display:flex;flex-direction:column;gap:10px;top:50%;transform:translateY(-40%)}
+  .chips.l{left:22px}.chips.r{right:22px}
+  .chip{background:rgba(255,255,255,.88);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(0,0,0,.05);border-radius:10px;padding:8px 12px 9px;min-width:132px;box-shadow:0 6px 22px rgba(30,30,50,.07);cursor:pointer;font:inherit;text-align:left;color:inherit}
+  .chip small{display:flex;align-items:center;gap:6px;color:var(--mute);font-size:11px}
+  .chip small i{width:6px;height:6px;border-radius:50%}
+  .chip b{display:block;font-size:19px;font-weight:700;margin-top:1px}
+  .chip.bad b{color:var(--red)}
+  .card{position:fixed;z-index:6;width:292px;background:rgba(255,255,255,.82);backdrop-filter:blur(18px) saturate(1.3);-webkit-backdrop-filter:blur(18px) saturate(1.3);border:1px solid rgba(255,255,255,.9);border-radius:16px;padding:16px 18px 14px;box-shadow:0 18px 50px rgba(30,30,60,.16);opacity:0;transform:scale(.96);transition:opacity .25s,transform .25s;pointer-events:none;max-height:70vh;overflow:auto}
+  .card.show{opacity:1;transform:none;pointer-events:auto}
+  .card h3{margin:0;font-size:16px;font-weight:700;line-height:1.2;padding-right:22px}
+  .state{font:700 10px/1 inherit;letter-spacing:.12em;display:inline-flex;align-items:center;gap:5px;margin:5px 0 8px;text-transform:uppercase}
+  .state:before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+  .state.done{color:var(--teal)}.state.next{color:var(--orange)}.state.locked{color:var(--mute)}.state.kill{color:var(--red)}
+  .row{display:flex;justify-content:space-between;gap:12px;font-size:13px;padding:4px 0;align-items:baseline}
+  .row span{color:var(--mute)}.row b{font-weight:700;text-align:right}
+  .row b.bad{color:var(--red)}.row b.ok{color:var(--teal)}
+  .note{font-size:12px;color:var(--mute);border-top:1px solid rgba(0,0,0,.07);margin-top:8px;padding-top:8px;line-height:1.45}
+  .x{position:absolute;top:10px;right:12px;border:0;background:none;font-size:20px;color:var(--mute);cursor:pointer;line-height:1}
+  .btn{border:1px solid var(--line);background:#fff;border-radius:999px;font:600 12.5px inherit;font-family:inherit;padding:9px 14px;cursor:pointer;color:var(--ink);text-decoration:none;display:inline-block}
+  .btn.go{background:var(--ink);color:#fff;border-color:var(--ink)}
+  .btn[disabled]{opacity:.5;cursor:default}
+  .card .btn{margin-top:10px;width:100%;text-align:center}
+  #next{position:fixed;left:50%;bottom:58px;transform:translateX(-50%);z-index:5;background:#fff;border:1px solid var(--line);border-radius:14px;box-shadow:0 10px 34px rgba(30,30,60,.12);padding:10px 12px 10px 16px;display:flex;gap:12px;align-items:center;max-width:min(680px,calc(100vw - 24px))}
+  #next .n{width:26px;height:26px;border-radius:50%;background:var(--orange);color:#fff;font-weight:700;font-size:13px;display:grid;place-items:center;flex:none}
+  #next.all .n{background:var(--teal)}#next.kill .n{background:var(--red)}
+  #next p{margin:0;font-size:13px;line-height:1.4}#next p b{display:block;font-size:14px}
+  footer{position:fixed;left:0;right:0;bottom:0;z-index:5;display:flex;justify-content:space-between;align-items:center;gap:10px;padding:12px 18px;font-size:11.5px;color:var(--mute)}
+  footer .r{display:flex;gap:8px}
+  #msg{position:fixed;top:14px;right:14px;z-index:9;background:var(--ink);color:#fff;font-size:12.5px;padding:9px 13px;border-radius:10px;opacity:0;transition:opacity .3s;pointer-events:none;max-width:320px}
+  #msg.in{opacity:.95}
+  @media (max-width:760px){
+    .sub{display:none}
+    .chips{flex-direction:row;flex-wrap:wrap;gap:6px;top:112px;transform:none;width:calc(50% - 14px)}
+    .chips.l{left:10px}.chips.r{right:10px;justify-content:flex-end}
+    .chip{min-width:0;flex:1 1 calc(50% - 6px);padding:6px 8px 7px}.chip b{font-size:15px}.chip small{font-size:9.5px}
+    .card{left:12px!important;right:12px;width:auto;top:auto!important;bottom:128px;max-height:46vh}
+    footer .src{display:none}#next{bottom:54px;left:12px;right:12px;transform:none;max-width:none}
+  }
+</style>
+<script type="importmap">{"imports":{"three":"/vendor/three/three.module.min.js"}}</script>
+</head>
+<body>
+<div id="stage"></div>
+<svg id="lines"></svg>
+<header>
+  <span class="badge" id="badge"><i></i><span id="badge-t">CONNECTING</span></span>
+  <h1>Agent Company World</h1>
+  <p class="sub" id="sub">Click a building to see what is really in your repo. Drag to turn, scroll or pinch to zoom.</p>
+</header>
+<div class="chips l" id="chipsL"></div>
+<div class="chips r" id="chipsR"></div>
+<div class="card" id="card" role="dialog" aria-live="polite"></div>
+<div id="next"></div>
+<div id="msg" role="status"></div>
+<footer>
+  <span class="src" id="src"></span>
+  <span class="r"><button class="btn" id="reset">Reset view</button><a class="btn" id="to-map" href="/">Command map</a><a class="btn" id="to-guild" href="/guild">Guild (classic)</a></span>
+</footer>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from '/vendor/three/OrbitControls.js';
+import { RoundedBoxGeometry } from '/vendor/three/RoundedBoxGeometry.js';
+
+const C={slab:0xf2f3f6,slabSide:0xdfe2e8,road:0xe2e5ea,blue:0x2f47e0,blueDark:0x1d2b78,panel:0x1a2350,teal:0x34b996,purple:0x8c6cf2,orange:0xf2875a,coral:0xef6b4f,green:0x63c46f,greenDark:0x3f9a58,trunk:0x9b7b5b,crate:0xd9b27c,dark:0x2a2f3a,yellow:0xf4c542,red:0xe0553b,lock:0xd4d7dd,lockDark:0xbfc3cb};
+const hex=n=>'#'+n.toString(16).padStart(6,'0');
+const $=id=>document.getElementById(id);
+const el=(tag,cls,text)=>{const e=document.createElement(tag);if(cls)e.className=cls;if(text!==undefined)e.textContent=text;return e};
+const TOKEN=new URLSearchParams(location.search).get('token');
+const PIECES=[['helm','Works only in its own folder'],['chest','Secrets and keys blocked'],['hands','Cannot merge or push to main'],['belt','Only the tools you allowed'],['boots','No real data to hosted models'],['amulet','Every action logged']];
+const PIECE_COL=[C.blue,C.purple,C.orange,C.teal,C.coral,C.yellow];
+
+/* Shown only when the page is opened without the local server. Clearly labelled as a demo on screen. */
+const DEMO={demo:true,version:'demo',repo:'demo-project',stations:[
+ {id:'setup',name:'Project depot',step:'Set up',state:'done',how:'Agent Company is set up in this project.'},
+ {id:'team',name:'Team quarters',step:'Forge a team',state:'done',how:'Add your agents on the Command map.'},
+ {id:'harness',name:'The Forge',step:'Install the harness',state:'next',how:'Press Install the harness.',action:'install-harness'},
+ {id:'orders',name:'Dispatch office',step:'Write quests',state:'locked',how:'Write a mission on the Command map.'},
+ {id:'run',name:'Coordinator tower',step:'Start the coordinator',state:'locked',how:'Run: python3 agent_company.py start . --tool claude --run'},
+ {id:'proof',name:'Evidence vault',step:'Seal proof',state:'locked',how:'After an approving review, seal the proof.'}],
+ harness:{pieces:{helm:true,chest:true,hands:false,belt:false,boots:false,amulet:false},fitted:2,pre_push:false},
+ team:[{name:'Mara',role:'Coordinator',origin:'Claude Code',level:1},{name:'Brannoc',role:'Builder',origin:'Claude Code',level:1},{name:'Ysolde',role:'Evaluator',origin:'Codex',level:1}],
+ orders:{pending:0,done:0},proof:{sealed:0,broken:0},kill:{on:false},read_at:''};
+
+/* ---------- renderer ---------- */
+const renderer=new THREE.WebGLRenderer({antialias:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;renderer.outputColorSpace=THREE.SRGBColorSpace;
+$('stage').appendChild(renderer.domElement);
+const scene=new THREE.Scene();scene.background=new THREE.Color(0xefeeea);
+const camera=new THREE.PerspectiveCamera(26,1,0.5,400);
+const controls=new OrbitControls(camera,renderer.domElement);
+controls.enableDamping=true;controls.enablePan=false;controls.minPolarAngle=.55;controls.maxPolarAngle=1.12;controls.minDistance=34;controls.maxDistance=160;
+scene.add(new THREE.HemisphereLight(0xffffff,0xd6d2c8,1.35));
+const sun=new THREE.DirectionalLight(0xffffff,1.55);sun.position.set(18,34,14);sun.castShadow=true;
+sun.shadow.mapSize.set(2048,2048);Object.assign(sun.shadow.camera,{left:-34,right:34,top:34,bottom:-34,near:1,far:90});sun.shadow.bias=-0.0006;sun.shadow.radius=4;scene.add(sun);
+
+const mats={};const M=c=>mats[c]||(mats[c]=new THREE.MeshStandardMaterial({color:c,roughness:.82,metalness:0}));
+function mesh(geo,col,x,y,z,p){const m=new THREE.Mesh(geo,M(col));m.position.set(x,y,z);m.castShadow=m.receiveShadow=true;p&&p.add(m);return m}
+const box=(w,h,d,col,x,y,z,p,r=.06)=>mesh(r?new RoundedBoxGeometry(w,h,d,2,r):new THREE.BoxGeometry(w,h,d),col,x,y+h/2,z,p);
+const cyl=(rt,rb,h,col,x,y,z,p,seg=24)=>mesh(new THREE.CylinderGeometry(rt,rb,h,seg),col,x,y+h/2,z,p);
+function house(p,col,w=2.2,d=2.2,h=1.3){const g=new THREE.Group();p.add(g);box(w,h,d,0xf6f6f8,0,0,0,g,.05);const r=new THREE.Mesh(new THREE.CylinderGeometry(0,1,1,4,1),M(col));r.scale.set(w*.78,1.1,d*.78);r.rotation.y=Math.PI/4;r.position.y=h+.55;r.castShadow=true;g.add(r);box(.5,.75,.05,col,0,0,d/2+.01,g,0);return g}
+function tree(p,x,z,s=1,cone=false){const g=new THREE.Group();g.position.set(x,0,z);p.add(g);cyl(.07*s,.09*s,.5*s,C.trunk,0,0,0,g,8);if(cone)mesh(new THREE.ConeGeometry(.42*s,1.1*s,10),C.greenDark,0,s,0,g);else mesh(new THREE.SphereGeometry(.42*s,16,12),C.green,0,.82*s,0,g);return g}
+function van(p){const g=new THREE.Group();p.add(g);box(1.2,.55,.6,0xffffff,0,.12,0,g,.08);box(.32,.3,.56,C.dark,.42,.35,0,g,.04);for(const a of[-.35,.35])for(const b of[-.3,.3]){const w=cyl(.13,.13,.08,0x22262e,a,0,b,g,12);w.rotation.x=Math.PI/2;w.position.y=.13}return g}
+function figure(p,x,z,col){const g=new THREE.Group();g.position.set(x,0,z);p.add(g);cyl(.16,.2,.5,col,0,0,0,g,12);mesh(new THREE.SphereGeometry(.17,14,10),0xf3d2b3,0,.68,0,g);return g}
+function sign(n,col){const c=document.createElement('canvas');c.width=c.height=128;const g=c.getContext('2d');g.fillStyle=hex(col);g.beginPath();g.arc(64,64,58,0,7);g.fill();g.fillStyle='#fff';g.font='700 70px Arial';g.textAlign='center';g.textBaseline='middle';g.fillText(n,64,68);const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;const s=new THREE.Sprite(new THREE.SpriteMaterial({map:t,depthTest:false}));s.scale.set(1.5,1.5,1);s.renderOrder=5;return s}
+function winTex(base,win){const c=document.createElement('canvas');c.width=128;c.height=256;const g=c.getContext('2d');g.fillStyle=base;g.fillRect(0,0,128,256);g.fillStyle=win;for(let i=0;i<4;i++)for(let j=0;j<10;j++)g.fillRect(i*32+6,j*25.6+6,20,13);const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;return t}
+
+/* ---------- world from state ---------- */
+let W=null,world=null,clickables=[],anchors={},anim=[],groups=[],selRing=null,nextRing=null,selected=null,hovered=null,firstBuild=true,t0=0,vans=[],crates=[];
+const POS={setup:[-17,-5],team:[-9.5,-5],harness:[-2,-5.5],orders:[5,-5],run:[11.5,-5.5],proof:[17.5,-5],kill:[19,-12.5]};
+const st=id=>W.stations.find(s=>s.id===id);
+function tag(g,id,h){g.userData.id=id;g.traverse(o=>{if(o.isMesh){o.userData.id=id;clickables.push(o)}});anchors[id]={g,h};groups.push(g);return g}
+function lock(g){g.traverse(o=>{if(o.isMesh)o.material=M(o.material.color&&o.material.color.getHex()<0x808080?C.lockDark:C.lock)})}
+
+function build(){
+ if(world)scene.remove(world);
+ world=new THREE.Group();scene.add(world);clickables=[];anchors={};anim=[];groups=[];vans=[];crates=[];
+ const killed=W.kill.on,running=st('run').state==='done'&&!killed;
+ mesh(new RoundedBoxGeometry(46,1.6,32,4,.5),C.slab,0,-.8,0,world).userData.base=1;
+ mesh(new RoundedBoxGeometry(46.3,1.2,32.3,4,.5),C.slabSide,0,-1.05,0,world).castShadow=false;
+ box(44,.04,2.2,C.road,0,0,8,world,0);for(let i=0;i<30;i++)box(.6,.02,.08,0xffffff,-20.5+i*1.42,.04,8,world,0);
+ // the dispatch line: one belt past every station, in order
+ box(39,.3,.9,0x8d939e,0,0,1.2,world,.05);for(let i=0;i<76;i++)cyl(.11,.11,.9,0x5f6570,-19+i*.5,.22,1.2,world,8).rotation.x=Math.PI/2;
+ const nCr=Math.min(8,W.orders.pending);for(let i=0;i<nCr;i++){const c=box(.5,.5,.5,C.crate,0,.4,1.2,world,.03);crates.push({m:c,o:i/Math.max(1,nCr)})}
+
+ // 1 depot
+ let g=new THREE.Group();g.position.set(POS.setup[0],0,POS.setup[1]);world.add(g);box(6,2.4,4.4,C.blue,0,0,0,g,.08);box(6.2,.18,4.6,C.blueDark,0,2.4,0,g,.05);
+ for(let i=0;i<4;i++)for(let j=0;j<2;j++)box(.9,.08,1.3,C.panel,-2.1+i*1.4,2.58,-1+j*2,g,0);for(let i=0;i<3;i++)box(1,1.5,.06,0xf3f4f8,-1.8+i*1.8,0,2.22,g,0);tag(g,'setup',3.2);
+ // 2 team quarters: one figure per agent in the repo
+ g=new THREE.Group();g.position.set(POS.team[0],0,POS.team[1]);world.add(g);
+ [C.orange,C.teal,C.purple].forEach((c,i)=>{house(g,c,2,2,1.2+i*.15).position.set(-2.3+i*2.3,0,0)});
+ const roleCol={Owner:C.blue,Coordinator:C.blue,Builder:C.orange,Evaluator:C.teal,Challenger:C.coral,'Claims officer':C.purple,Watch:C.greenDark,'Chief of staff':C.purple};
+ W.team.slice(0,12).forEach((m,i)=>{const f=figure(g,-2.8+(i%6)*1.1,2+Math.floor(i/6)*.9,roleCol[m.role]||C.dark);anim.push(t=>{f.position.y=running?Math.abs(Math.sin(t*2.4+i))*.12:0})});
+ tag(g,'team',2.8);
+ // 3 forge: six stations, each lit only if that harness piece is really enforced
+ g=new THREE.Group();g.position.set(POS.harness[0],0,POS.harness[1]);world.add(g);box(7.4,.3,3,0xe6e8ed,0,0,0,g,.08);
+ PIECES.forEach(([k],i)=>{const on=!!W.harness.pieces[k],x=-3+i*1.2;box(.95,.8,1.6,0xffffff,x,.3,0,g,.06);box(.1,1.2,.1,0x9aa0aa,x,1.6,0,g,0);
+  const pc=box(.46,.46,.46,on?PIECE_COL[i]:C.lock,x,on?1.12:2.1,0,g,.05);if(on)anim.push(t=>{pc.rotation.y=t*.8+i});});
+ const gateUp=W.harness.fitted===6;box(.16,2.2,.16,0x9aa0aa,3.5,.3,-1.2,g,0);box(.16,2.2,.16,0x9aa0aa,3.5,.3,1.2,g,0);box(.12,1.1,2.3,gateUp?C.teal:C.red,3.5,gateUp?1.5:.3,0,g,.03);tag(g,'harness',3.2);
+ // 4 dispatch office
+ g=new THREE.Group();g.position.set(POS.orders[0],0,POS.orders[1]);world.add(g);house(g,C.purple,3,2.8,1.7);box(1.4,1,.1,0xffffff,0,1.9,1.5,g,.03);
+ for(let i=0;i<Math.min(5,W.orders.pending);i++)box(.9,.12,.03,C.orange,0,2.6-i*.18,1.57,g,0);tag(g,'orders',3.2);
+ // 5 coordinator tower
+ g=new THREE.Group();g.position.set(POS.run[0],0,POS.run[1]);world.add(g);
+ const tex=winTex(hex(C.teal),running?'#fff6c8':'#c8f2e4'),side=new THREE.MeshStandardMaterial({map:tex,roughness:.8}),tm=new THREE.Mesh(new THREE.BoxGeometry(3,8.5,3),[side,side,M(C.teal),M(C.teal),side,side]);
+ tm.position.y=4.25;tm.castShadow=tm.receiveShadow=true;g.add(tm);box(2.6,.25,2.6,0xeef2f4,0,8.5,0,g,.04);const dish=box(.8,.5,.8,0xdfe4e8,.5,8.75,0,g,.04);if(running)anim.push(t=>dish.rotation.y=t);tag(g,'run',9.4);
+ // 6 evidence vault
+ g=new THREE.Group();g.position.set(POS.proof[0],0,POS.proof[1]);world.add(g);box(4,2,3,0xf5f6f8,0,0,0,g,.12);box(4.2,.22,3.2,C.teal,0,2,0,g,.08);box(1.4,1.3,.08,0x3c4250,0,0,1.52,g,0);
+ const wheel=cyl(.38,.38,.08,C.teal,0,.55,1.6,g,24);wheel.rotation.x=Math.PI/2;for(let i=0;i<Math.min(6,W.proof.sealed);i++)box(.5,.5,.5,C.teal,-1.4+i*.56,2.22,0,g,.05);
+ if(W.proof.broken)box(.5,.5,.5,C.red,1.5,2.22,.9,g,.05);tag(g,'proof',3.4);
+ // kill-switch tower: green beacon when clear, red when someone has stopped the agents
+ g=new THREE.Group();g.position.set(POS.kill[0],0,POS.kill[1]);world.add(g);cyl(.55,.75,4.6,0xf5f2f0,0,0,0,g,20);cyl(.9,.9,.25,0xdfe2e8,0,4.6,0,g,20);
+ const beacon=new THREE.Mesh(new THREE.SphereGeometry(.55,20,14),new THREE.MeshBasicMaterial({color:killed?C.red:C.green}));beacon.position.y=5.35;g.add(beacon);beacon.userData.keep=1;
+ anim.push(t=>{beacon.scale.setScalar(killed?1+Math.abs(Math.sin(t*4))*.35:1)});tag(g,'kill',6.2);
+
+ // locked stations go grey; numbered signs show done / next / locked
+ W.stations.forEach((s,i)=>{const a=anchors[s.id];if(s.state==='locked'||killed)lock(a.g);
+  const sg=sign(s.state==='done'?'✓':String(i+1),killed?C.red:s.state==='done'?C.teal:s.state==='next'?C.orange:0x9aa0aa);sg.position.set(POS[s.id][0],.9,3.4);world.add(sg)});
+ for(const [x,z,s,c] of [[-21,-12,1.1],[-14,-12.5,1,1],[-6,-12,1],[2,-13,1.1,1],[9,-12.5,1],[14.5,-12,1,1],[-21,4,.9],[21,3,1,1],[-12,12,1],[-4,13,1.1,1],[6,12.5,1],[15,13,1,1],[21,12,.9],[-20,13,1]])tree(world,x,z,s,c);
+ for(let i=0;i<3;i++){const v=van(world);v.position.set(-18+i*14,0,8.4);vans.push({m:v,o:i/3});tag(v,'run',1.2)}
+ selRing=ringMesh(C.blue);selRing.visible=false;world.add(selRing);nextRing=ringMesh(C.orange);world.add(nextRing);
+ const nx=W.stations.find(s=>s.state==='next');if(nx&&!killed){nextRing.position.set(POS[nx.id][0],.06,POS[nx.id][1]);nextRing.userData.r=4}else nextRing.visible=false;
+ if(firstBuild){let n=0;world.children.forEach(o=>{if(o.userData.base||o.isSprite||o===selRing||o===nextRing)return;o.userData.delay=.2+(n++%40)*.025;o.userData.sy=o.scale.y;o.scale.y=.001});t0=clock.getElapsedTime();firstBuild=false}
+ if(selected)placeSel();
+}
+function ringMesh(col){const m=new THREE.Mesh(new THREE.TorusGeometry(1,.05,8,64),new THREE.MeshBasicMaterial({color:col,transparent:true,opacity:.95}));m.rotation.x=-Math.PI/2;m.position.y=.06;return m}
+function placeSel(){const a=anchors[selected];if(!a)return;selRing.position.set(a.g.position.x,.07,a.g.position.z);selRing.userData.r=selected==='kill'?1.8:4.4;selRing.visible=true}
+
+/* ---------- panels ---------- */
+function chip(host,label,value,col,target,bad){const b=el('button','chip'+(bad?' bad':''));const s=el('small');const i=el('i');i.style.background=hex(col);s.append(i,label);b.append(s,el('b','',value));b.onclick=()=>select(target);host.appendChild(b);chipEls.push({el:b,target,col:hex(col),side:host.id==='chipsL'?'L':'R'})}
+let chipEls=[];
+function panels(){
+ chipEls=[];$('chipsL').textContent='';$('chipsR').textContent='';
+ const done=W.stations.filter(s=>s.state==='done').length,nx=W.stations.find(s=>s.state==='next');
+ chip($('chipsL'),'Lifecycle steps done',done+' / '+W.stations.length,C.blue,nx?nx.id:'proof');
+ chip($('chipsL'),'Harness pieces enforced',W.harness.fitted+' / 6',C.orange,'harness',W.harness.fitted<6);
+ chip($('chipsL'),'Agents on the team',String(W.team.length),C.purple,'team');
+ chip($('chipsR'),'Orders waiting',String(W.orders.pending),C.purple,'orders');
+ chip($('chipsR'),'Proof sealed',String(W.proof.sealed),C.teal,'proof',W.proof.broken>0);
+ chip($('chipsR'),'Kill switch',W.kill.on?'ON':'off',W.kill.on?C.red:C.green,'kill',W.kill.on);
+ const b=$('badge');b.className='badge'+(W.kill.on?' kill':W.demo?' demo':'');$('badge-t').textContent=W.kill.on?'STOPPED · KILL SWITCH ON':W.demo?'DEMO DATA · NOT YOUR REPO':'LIVE · '+W.repo;
+ $('src').textContent=W.demo?'Demo. For the live world run: python3 agent_company.py world':'Agent Company '+W.version+' · read from '+W.repo+' at '+(W.read_at||'').slice(11,19)+' UTC · refreshes every 3 s';
+ const n=$('next');n.textContent='';n.className=W.kill.on?'kill':nx?'':'all';
+ const p=el('p');
+ if(W.kill.on){n.append(el('span','n','!'));p.append(el('b','','Agents are stopped'),'By '+W.kill.by+': '+W.kill.reason+'. Only a person lifts it, from the terminal.')}
+ else if(nx){n.append(el('span','n',String(W.stations.indexOf(nx)+1)));p.append(el('b','','Next: '+nx.step),nx.how)}
+ else{n.append(el('span','n','✓'));p.append(el('b','','Every step has evidence'),'Keep sealing proof for each merged change.')}
+ n.append(p);if(nx&&!W.kill.on&&nx.action)n.append(actionBtn(nx));
+ if(selected)renderCard();
+}
+function actionBtn(s){const b=el('button','btn go','Install the harness');b.style.flex='none';b.disabled=!!W.demo;if(W.demo)b.title='Run the live world to use this';
+ b.onclick=async()=>{b.disabled=true;b.textContent='Installing…';try{const r=await api('/api/harness/install',{});say('Harness installed: '+(r.fitted??'?')+' of 6 pieces enforced.');await refresh()}catch(e){say('Install refused: '+e.message);b.disabled=false;b.textContent='Install the harness'}};return b}
+function row(k,v,cls){const r=el('div','row');r.append(el('span','',k),el('b',cls||'',v));return r}
+function renderCard(){
+ const c=$('card');c.textContent='';const x=el('button','x','×');x.setAttribute('aria-label','Close');x.onclick=hideCard;c.append(x);
+ if(selected==='kill'){c.append(el('h3','','Kill switch'),el('div','state '+(W.kill.on?'kill':'done'),W.kill.on?'On: agents stopped':'Off'));
+  if(W.kill.on)c.append(row('Set by',W.kill.by),row('Reason',W.kill.reason),row('When',W.kill.ts||'?'));
+  c.append(el('div','note','Stop: python3 scripts/runtime.py kill --by NAME --reason TEXT. Only a named person lifts it, from the terminal, so an agent that reaches this screen cannot release itself.'));return}
+ const s=st(selected),i=W.stations.indexOf(s);c.append(el('h3','',(i+1)+'. '+s.name),el('div','state '+s.state,s.state==='done'?'Done':s.state==='next'?'Next step':'Locked until step '+(W.stations.findIndex(q=>q.state==='next')+1)+' is done'));
+ if(s.id==='setup')c.append(row('Project',W.repo),row('Agent Company',W.version),row('Orders folder','docs/ops/'));
+ if(s.id==='team'){if(!W.team.length)c.append(row('Agents','none yet','bad'));W.team.forEach(m=>c.append(row(m.name,m.role+' · '+m.origin)))}
+ if(s.id==='harness'){c.append(row('Pieces enforced',W.harness.fitted+' / 6',W.harness.fitted===6?'ok':'bad'));PIECES.forEach(([k,label])=>c.append(row(label,W.harness.pieces[k]?'✓':'✗',W.harness.pieces[k]?'ok':'bad')));c.append(row('Pre-push hook',W.harness.pre_push?'✓':'✗',W.harness.pre_push?'ok':'bad'))}
+ if(s.id==='orders')c.append(row('Waiting in the inbox',String(W.orders.pending)),row('Done',String(W.orders.done)));
+ if(s.id==='run')c.append(row('Coordinator',s.state==='done'?'started':'not started',s.state==='done'?'ok':''),row('Coordinators allowed','exactly 1'),row('Agents may merge','never','bad'));
+ if(s.id==='proof')c.append(row('Sealed records',String(W.proof.sealed),W.proof.sealed?'ok':''),row('Broken records',String(W.proof.broken),W.proof.broken?'bad':''));
+ c.append(el('div','note',s.state==='done'?'This step has evidence in the repo.':s.how));
+ if(s.action&&s.state==='next'&&!W.kill.on)c.append(actionBtn(s));
+}
+function select(id){selected=id;renderCard();$('card').classList.add('show');placeSel()}
+function hideCard(){selected=null;$('card').classList.remove('show');if(selRing)selRing.visible=false}
+let msgT;function say(t){const m=$('msg');m.textContent=t;m.classList.add('in');clearTimeout(msgT);msgT=setTimeout(()=>m.classList.remove('in'),4200)}
+
+/* ---------- live data ---------- */
+async function api(path,body){const r=await fetch(path+'?token='+encodeURIComponent(TOKEN),body?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}:{cache:'no-store'});if(!r.ok)throw new Error(await r.text());return r.json()}
+let sig='';
+async function refresh(){let s;try{if(!TOKEN)throw 0;s=await api('/api/world')}catch(e){s=W&&!W.demo?null:DEMO;if(!s){$('badge-t').textContent='CONNECTION LOST · showing the last state read';$('badge').className='badge demo';return}}
+ const k=JSON.stringify({...s,read_at:''});W=s;if(k!==sig){sig=k;build()}panels()}
+if(TOKEN){$('to-map').href='/?token='+encodeURIComponent(TOKEN);$('to-guild').href='/guild?token='+encodeURIComponent(TOKEN)}
+
+/* ---------- picking, layout, loop ---------- */
+const ray=new THREE.Raycaster(),ptr=new THREE.Vector2();let downAt=null,userTouched=false;
+function pick(e){const r=renderer.domElement.getBoundingClientRect();ptr.set((e.clientX-r.left)/r.width*2-1,-(e.clientY-r.top)/r.height*2+1);ray.setFromCamera(ptr,camera);const h=ray.intersectObjects(clickables,false)[0];return h?h.object.userData.id:null}
+renderer.domElement.addEventListener('pointermove',e=>{hovered=pick(e);renderer.domElement.style.cursor=hovered?'pointer':'grab'});
+renderer.domElement.addEventListener('pointerdown',e=>{downAt=[e.clientX,e.clientY];userTouched=true});
+renderer.domElement.addEventListener('pointerup',e=>{if(!downAt)return;const mv=Math.hypot(e.clientX-downAt[0],e.clientY-downAt[1]);downAt=null;if(mv>6)return;const id=pick(e);id?select(id):hideCard()});
+addEventListener('keydown',e=>{if(e.key==='Escape')hideCard()});
+function framing(){const a=innerWidth/innerHeight,mob=innerWidth<760;return{dist:Math.max(100,(mob?38:29)/(Math.tan(13*Math.PI/180)*a)),target:new THREE.Vector3(0,mob?5:1.5,mob?-1:0)}}
+function setCam(az){const f=framing(),pol=.9;camera.position.set(f.target.x+f.dist*Math.sin(pol)*Math.sin(az),f.target.y+f.dist*Math.cos(pol),f.target.z+f.dist*Math.sin(pol)*Math.cos(az));controls.target.copy(f.target)}
+function resize(){renderer.setSize(innerWidth,innerHeight);camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();setCam(Math.PI/5);controls.update();userTouched=false}
+addEventListener('resize',resize);$('reset').onclick=()=>{hideCard();resize()};
+const clock=new THREE.Clock(),tmp=new THREE.Vector3(),proj=new THREE.Vector3(),svg=$('lines');
+const ease=x=>{const c1=1.70158,c3=c1+1;return 1+c3*Math.pow(x-1,3)+c1*Math.pow(x-1,2)};
+function screenOf(id){const a=anchors[id];if(!a)return null;a.g.getWorldPosition(tmp);tmp.y+=a.h;proj.copy(tmp).project(camera);return[(proj.x+1)/2*innerWidth,(1-proj.y)/2*innerHeight]}
+function frame(){requestAnimationFrame(frame);if(!world)return;const t=clock.getElapsedTime(),lt=t-t0;
+ world.children.forEach(o=>{if(o.userData.sy===undefined)return;const k=Math.min(1,Math.max(0,(lt-o.userData.delay)/.7));o.scale.y=Math.max(.001,ease(k)*o.userData.sy);if(k>=1)delete o.userData.sy});
+ anim.forEach(f=>f(t));
+ const running=st('run').state==='done'&&!W.kill.on;
+ vans.forEach(v=>{if(running){const u=((v.o+t*.03)%1);v.m.position.x=-21+u*42}});
+ crates.forEach(c=>{const u=running?((c.o+t*.05)%1):c.o*.25;c.m.position.x=-19+u*38});
+ groups.forEach(g=>{const up=(hovered&&g.userData.id===hovered)||(selected&&g.userData.id===selected)?.25:0;g.position.y+=(up-g.position.y)*.15});
+ if(selRing.visible){const s=selRing.userData.r*(1+Math.sin(t*3)*.03);selRing.scale.set(s,s,s)}
+ if(nextRing.visible){const s=nextRing.userData.r*(1+Math.sin(t*2.2)*.07);nextRing.scale.set(s,s,s);nextRing.material.opacity=.55+Math.sin(t*2.2)*.35}
+ if(!userTouched)setCam(Math.PI/5+Math.sin(t*.18)*.1);
+ controls.update();renderer.render(scene,camera);
+ let s='';const mob=innerWidth<760;
+ chipEls.forEach(c=>{const sp=screenOf(c.target);if(!sp)return;const r=c.el.getBoundingClientRect();const x0=mob?r.left+r.width/2:(c.side==='L'?r.right:r.left),y0=mob?r.bottom:r.top+r.height/2;
+  s+=`<path d="M${x0} ${y0} L${sp[0]} ${sp[1]}" stroke="${c.col}" stroke-width="1.5" stroke-dasharray="1.5 5" stroke-linecap="round" fill="none" opacity="${mob?.5:.7}"/><circle cx="${sp[0]}" cy="${sp[1]}" r="4" fill="${c.col}" stroke="#fff" stroke-width="1.6"/>`});
+ if(selected){const sp=screenOf(selected),card=$('card');if(sp){if(!mob){let x=sp[0]+40,y=sp[1]-card.offsetHeight-20;if(x+card.offsetWidth>innerWidth-16)x=sp[0]-card.offsetWidth-40;y=Math.max(150,Math.min(innerHeight-card.offsetHeight-120,y));card.style.left=x+'px';card.style.top=y+'px'}
+  const r=card.getBoundingClientRect(),cx=Math.max(r.left,Math.min(r.right,sp[0])),cy=mob?r.top:Math.max(r.top,Math.min(r.bottom,sp[1]));
+  s+=`<path d="M${cx} ${cy} L${sp[0]} ${sp[1]}" stroke="#2f47e0" stroke-width="1.8" stroke-dasharray="1.5 5" stroke-linecap="round" fill="none"/><circle cx="${sp[0]}" cy="${sp[1]}" r="5" fill="#2f47e0" stroke="#fff" stroke-width="2"/>`}}
+ svg.innerHTML=s}
+resize();svg.setAttribute('width','100%');svg.setAttribute('height','100%');
+await refresh();frame();setInterval(refresh,3000);
+</script>
+</body>
+</html>

@@ -60,6 +60,13 @@ class WorldState(unittest.TestCase):
         self.assertEqual(w["orders"]["pending"], 1)
         self.assertEqual({s["id"]: s["state"] for s in w["stations"]}["orders"], "done")
 
+    def test_coordinator_counts_as_started_only_when_status_has_a_real_time(self):
+        ac.deploy_files(self.ops, [["inbox/001_add-rate-limiting.md", GOOD]], None, {"heroes": {"h1": {"name": "Mara", "cls": "leader"}}})
+        ac.install_harness(self.repo)
+        self.assertEqual(self.stations()["run"]["state"], "next", "the untouched STATUS.md template must not read as a running coordinator")
+        (self.ops / "outbox" / "STATUS.md").write_text("# Status\n\nTime: 2026-11-20 12:10 SGT (checked against the remote)\n", encoding="utf-8")
+        self.assertEqual(self.stations()["run"]["state"], "done")
+
     def test_kill_switch_file_is_reported_and_stops_the_line(self):
         (self.repo / ".harness").mkdir()
         (self.repo / ".harness" / "KILL").write_text(json.dumps({"by": "Owner", "reason": "drill", "ts": "2026-11-20T04:00:00Z"}))

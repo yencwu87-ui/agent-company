@@ -51,6 +51,8 @@ HERE = Path(__file__).resolve().parent
 TEMPLATES = HERE / "templates"
 UI = HERE / "ui" / "command.html"
 GUILD = HERE / "ui" / "guild.html"
+WORLD = HERE / "ui" / "world.html"
+VENDOR = {"three.module.min.js", "OrbitControls.js", "RoundedBoxGeometry.js"}   # served from ui/vendor/three, nothing else
 VERSION = "0.6.1"
 HARNESS_SRC = Path(os.environ["AGENT_COMPANY_KIT"]) if os.environ.get("AGENT_COMPANY_KIT") else HERE / "harness"   # OpenProof's kit, when set
 
@@ -818,6 +820,55 @@ def stage(repo: str | Path) -> dict:
             "next": {"name": nxt[0], "how": nxt[2]} if nxt else None}
 
 
+WORLD_STATIONS = [("setup", "Set up", "Project depot"), ("team", "Forge a team", "Team quarters"), ("harness", "Install the harness", "The Forge"),
+                  ("orders", "Write quests", "Dispatch office"), ("run", "Start the coordinator", "Coordinator tower"), ("proof", "Seal proof", "Evidence vault")]
+WORLD_HOW = {"team": "Add your agents on the Command map (one coordinator, a builder and an independent evaluator), then press Deploy.",
+             "harness": "Press Install the harness. It fits all six pieces in this repo and keeps your old settings as a backup.",
+             "orders": "Write a mission on the Command map (the owner's words, a branch, tests, and a stop point that says Don't merge), then press Deploy."}
+
+
+def world_state(repo: str | Path) -> dict:
+    """Everything the 3D world draws, read from the repository at this moment. A station is 'done' only when every
+    station before it is done, so the screen never shows a step as finished while an earlier one is still open."""
+    root = Path(repo).resolve()
+    ops = ops_dir(root)
+    raw = {s["name"]: s for s in stage(root)["steps"]}
+    stations, open_seen = [], False
+    status = ops / "outbox" / "STATUS.md"
+    status_text = status.read_text(encoding="utf-8", errors="replace") if status.exists() else ""
+    started = bool(re.search(r"^Time:\s*\d", status_text, re.M))     # the template's "Time: <date...>" placeholder is not a start
+    for sid, step, name in WORLD_STATIONS:
+        ok = started if sid == "run" else raw[step]["done"]
+        state = "locked" if open_seen else ("done" if ok else "next")
+        open_seen = open_seen or not ok
+        st = {"id": sid, "name": name, "step": step, "state": state, "how": WORLD_HOW.get(sid, raw[step]["how"])}
+        if sid == "harness":
+            st["action"] = "install-harness"
+        stations.append(st)
+    team = []
+    try:
+        heroes = json.loads((ops / "guild" / "guild.json").read_text(encoding="utf-8")).get("heroes", {}).values()
+        team = [{"name": str(h.get("name", ""))[:40], "role": CLASS_ROLE.get(h.get("cls"), str(h.get("cls", ""))[:30]),
+                 "origin": str(h.get("origin", ""))[:30], "level": h.get("lv", 1)} for h in heroes if isinstance(h, dict)][:24]
+    except (OSError, ValueError, AttributeError):
+        pass
+    recs = [verify_record(root, l["id"]) for l in _ledger(root) if l.get("id")][-50:]
+    kill = {"on": False}
+    kp = root / ".harness" / "KILL"
+    if kp.is_file():
+        try:
+            k = json.loads(kp.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            k = {}
+        kill = {"on": True, "by": str(k.get("by", "?"))[:60], "reason": str(k.get("reason", "KILL file present"))[:200], "ts": str(k.get("ts", ""))[:30]}
+    inbox, done = ops / "inbox", ops / "done"
+    return {"version": VERSION, "repo": root.name, "stations": stations, "harness": harness_status(root), "team": team,
+            "orders": {"pending": len(list(inbox.glob("[0-9][0-9][0-9]_*.md"))) if inbox.is_dir() else 0,
+                       "done": len(list(done.glob("[0-9][0-9][0-9]_*.md"))) if done.is_dir() else 0},
+            "proof": {"sealed": sum(1 for r in recs if r.get("sealed")), "broken": sum(1 for r in recs if not r.get("ok"))},
+            "kill": kill, "read_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
+
+
 def _print_checks(rows: list[dict]) -> bool:
     bad = False
     for r in rows:
@@ -893,7 +944,7 @@ def cmd_launch(repo: str | None, port: int, open_browser: bool) -> int:
             cmd_init(str(root))
         print("  ✓ Agent Company set up in docs/ops/")
     print(f"\nOpening the Guild. Your project lives in: {root}\nTo stop, close this window or press Ctrl+C.\n")
-    return cmd_ui(str(root), port, open_browser, "/guild")
+    return cmd_ui(str(root), port, open_browser, "/world")
 
 
 AGENT_CLASS_HINTS = [("master", r"\b(owner|creative[- ]director|ceo|founder)\b"), ("leader", r"\b(producer|coordinator|project manager|scrum|release[- ]manager)\b"),
@@ -989,6 +1040,7 @@ def make_handler(ops: Path, token: str):
         return '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"></head><body>' + page + "</body></html>"
     page = wrap(UI.read_text(encoding="utf-8"))
     guild_page = wrap(GUILD.read_text(encoding="utf-8")) if GUILD.exists() else page
+    world_page = wrap(WORLD.read_text(encoding="utf-8")) if WORLD.exists() else page
 
     class H(BaseHTTPRequestHandler):
         def log_message(self, *a):  # quiet
@@ -1013,8 +1065,18 @@ def make_handler(ops: Path, token: str):
                 return self._send(200, page, "text/html")
             if path in ("/guild", "/guild/"):
                 return self._send(200, guild_page, "text/html")
+            if path in ("/world", "/world/"):
+                return self._send(200, world_page, "text/html")
+            if path.startswith("/vendor/"):
+                name = path[len("/vendor/three/"):] if path.startswith("/vendor/three/") else ""
+                f = HERE / "ui" / "vendor" / "three" / name
+                if name not in VENDOR or not f.is_file():        # a fixed list of names: no path can climb out
+                    return self._send(404, '{"error":"not found"}')
+                return self._send(200, f.read_text(encoding="utf-8"), "text/javascript")
             if not self._ok_token():
                 return self._send(403, '{"error":"bad token"}')
+            if path == "/api/world":
+                return self._send(200, json.dumps(world_state(ops.parent.parent)))
             if path == "/api/info":
                 return self._send(200, json.dumps({"repo": str(ops.parent.parent), "ops": str(ops), "version": VERSION}))
             if path == "/api/plan":
@@ -1063,7 +1125,7 @@ def cmd_ui(repo: str, port: int, open_browser: bool, page: str = "/") -> int:
     token = secrets.token_urlsafe(18)
     srv = ThreadingHTTPServer(("127.0.0.1", port), make_handler(ops, token))
     url = f"http://127.0.0.1:{srv.server_address[1]}{page}?token={token}"
-    print(f"Agent Company {'Guild' if page != '/' else 'Command'}: {url}\nWrites into {ops}. Press Ctrl+C to stop.")
+    print(f"Agent Company {({'/guild': 'Guild', '/world': 'World'}).get(page, 'Command')}: {url}\nWrites into {ops}. Press Ctrl+C to stop.")
     if open_browser:
         threading.Timer(0.4, lambda: webbrowser.open(url)).start()
     try:
@@ -1218,6 +1280,7 @@ def main(argv=None) -> int:
         s = sub.add_parser(name); s.add_argument("repo", nargs="?", default=".")
     s = sub.add_parser("ui"); s.add_argument("repo", nargs="?", default="."); s.add_argument("--port", type=int, default=8765); s.add_argument("--no-browser", action="store_true")
     s = sub.add_parser("guild"); s.add_argument("repo", nargs="?", default="."); s.add_argument("--port", type=int, default=8765); s.add_argument("--no-browser", action="store_true")
+    s = sub.add_parser("world", help="the live 3D world: see the real state of this repo and deploy step by step"); s.add_argument("repo", nargs="?", default="."); s.add_argument("--port", type=int, default=8765); s.add_argument("--no-browser", action="store_true")
     s = sub.add_parser("seal", help="re-run the tests and write a chained, signed evidence record")
     s.add_argument("repo", nargs="?", default="."); s.add_argument("--quest", required=True); s.add_argument("--pr", default="")
     s.add_argument("--verdict", default="approve"); s.add_argument("--test-cmd", dest="test_cmd", required=True); s.add_argument("--workdir", default="")
@@ -1273,6 +1336,8 @@ def main(argv=None) -> int:
         return cmd_card(a.repo, a.agent, a.seal)
     if a.cmd == "trust":
         return cmd_trust(a.repo, a.json, a.seal)
+    if a.cmd == "world":
+        return cmd_ui(a.repo, a.port, not a.no_browser, "/world")
     if a.cmd == "guild":
         return cmd_ui(a.repo, a.port, not a.no_browser, "/guild")
     return cmd_start(a.repo, a.tool, a.run)

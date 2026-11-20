@@ -1,6 +1,6 @@
 #!/bin/sh
 # Mac: double-click this file to start Agent Company. It makes your first project folder
-# (~/agent-company-projects/my-first-team), sets everything up, and opens the Guild in your browser.
+# (~/agent-company-projects/my-first-team), sets everything up, and opens the World in your browser.
 # The first time, macOS may ask: right-click this file, choose Open, then Open again.
 cd "$(dirname "$0")" || exit 1
 if ! command -v python3 >/dev/null 2>&1; then
