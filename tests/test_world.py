@@ -584,6 +584,18 @@ class WorldLifecycle(_KitRepo, unittest.TestCase):
         self.add(type="deploy", by="Owner", agent=" Builder-1", result="STARTED", gates={"scanned": "PASS"})
         self.assertEqual(self.life()["stage"], "Deployed")
 
+    # kit 1.6.0 after the Codex review of 5f82c43: the latest deploy record decides, so the screen is never ahead of the kit
+    def test_a_later_ready_or_failed_or_withdrawn_start_takes_deployed_away(self):
+        self.ready(); self.card(); self.trial()
+        self.add(type="deploy", by="Owner", agent="builder-1", result="STARTED", gates={"scanned": "PASS"})
+        self.assertEqual(self.life()["stage"], "Deployed")
+        for later, word in (("READY", "ready, nothing started"), ("START FAILED", "failed to start"), ("START WITHDRAWN", "start withdrawn"),
+                            ("STARTING", "start not confirmed")):     # kit 1.6.0 writes STARTING before the command, STARTED after
+            self.add(type="deploy", by="Owner", agent="builder-1", result=later, gates={"scanned": "PASS"})
+            self.assertEqual((self.life()["stage"], self.steps()["Deployed"]), ("Trialled", word), later)
+            self.add(type="deploy", by="Owner", agent="builder-1", result="STARTED", gates={"scanned": "PASS"})
+            self.assertEqual(self.life()["stage"], "Deployed", later)
+
     def test_replacing_a_kit_script_or_the_scan_baseline_after_the_trial_is_refit(self):
         self.ready(); self.card(); self.trial()
         (self.repo / "scripts/golden.py").write_text("print('MATCH')\n", encoding="utf-8")
