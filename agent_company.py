@@ -242,6 +242,19 @@ def _ssh_keygen() -> str | None:
     return shutil.which("ssh-keygen")
 
 
+def _user_signers() -> Path:
+    """This user's own signer list, beside the keys and outside every checkout (~/.agent-company/allowed_signers).
+    seal and cosign add this machine's key to it; verify --rerun trusts only a list like this, or --signers."""
+    return ED_KEY.parent / SIGNERS
+
+
+def _add_signer(al: Path, pub: str, header: str) -> None:
+    lines = al.read_text(encoding="utf-8").splitlines() if al.exists() else [header]
+    if not any(pub in l for l in lines):
+        al.parent.mkdir(parents=True, exist_ok=True)
+        al.write_text("\n".join(lines + [f'owner namespaces="{ED_NS}" {pub}']) + "\n", encoding="utf-8")
+
+
 def _ed_key(create: bool) -> Path | None:
     if ED_KEY.exists() and ED_KEY.with_suffix(".pub").exists():
         return ED_KEY
@@ -276,28 +289,77 @@ def _ed_sign(root: Path, digest: str) -> dict:
             return {}
         signature = sig.read_text(encoding="utf-8")
     pub = " ".join(key.with_suffix(".pub").read_text(encoding="utf-8").split()[:2])
-    al = _evdir(root) / SIGNERS
-    lines = al.read_text(encoding="utf-8").splitlines() if al.exists() else ["# Public keys that may seal evidence here (Agent Company). Check the fingerprint with the owner."]
-    if not any(pub in l for l in lines):
-        al.write_text("\n".join(lines + [f'owner namespaces="{ED_NS}" {pub}']) + "\n", encoding="utf-8")
+    _add_signer(_evdir(root) / SIGNERS, pub, "# Public keys that may seal evidence here (Agent Company). Check the fingerprint with the owner.")
+    _add_signer(_user_signers(), pub, "# Keys this user trusts to seal evidence (Agent Company). verify --rerun runs a record's command only "
+                                      "when its key is here or in a --signers file outside the repository.")
     return {"sig_ed25519": signature, "signer": _ed_fingerprint(pub)}
 
 
-def _ed_verify(root: Path, rec: dict, signers: str = "") -> tuple:
-    """(True/False/None, note) for a record's Ed25519 signature."""
-    if not _ssh_keygen():
-        return None, "ssh-keygen isn't on this machine, so the Ed25519 signature can't be checked here"
-    al = Path(signers) if signers else _evdir(root) / SIGNERS
-    if not al.exists():
-        return False, f"no {al.name} to check the signature against"
+def _ed_match(rec: dict, al: Path) -> str | None:
+    """The fingerprint of the key in `al` that the record's Ed25519 signature verifies against, or None."""
+    if not _ssh_keygen() or not al.is_file():
+        return None
     with tempfile.TemporaryDirectory() as d:
         sig = Path(d) / "s.sig"
         sig.write_text(rec.get("sig_ed25519", ""), encoding="utf-8")
         r = subprocess.run([_ssh_keygen(), "-Y", "verify", "-f", str(al), "-I", "owner", "-n", ED_NS, "-s", str(sig)],
                            input=rec.get("hash", ""), capture_output=True, text=True)
-    if r.returncode == 0:
-        return True, f"Ed25519, key {rec.get('signer', '')} (checkable on any machine)"
+    if r.returncode != 0:
+        return None
+    m = re.search(r"\bkey (SHA256:\S+)", r.stdout + r.stderr)
+    return m.group(1) if m else "a key in the list"
+
+
+def _ed_verify(root: Path, rec: dict, signers: str = "") -> tuple:
+    """(True/False/None, note) for a record's Ed25519 signature. The note names the key that matched in the list,
+    never the record's own `signer` field, which is outside the hash."""
+    if not _ssh_keygen():
+        return None, "ssh-keygen isn't on this machine, so the Ed25519 signature can't be checked here"
+    al = Path(signers) if signers else _evdir(root) / SIGNERS
+    if not al.exists():
+        return False, f"no {al.name} to check the signature against"
+    fp = _ed_match(rec, al)
+    if fp:
+        return True, f"Ed25519, key {fp} (checkable on any machine)"
     return False, "the Ed25519 signature doesn't match this hash and these allowed signers: the record or the key list was changed"
+
+
+RERUN_NO_TRUST = ("not re-run: no signer list outside this repository trusts this record's key; "
+                  "pass --signers or cosign on the sealing machine.")
+RERUN_DIRTY = ("not re-run: the working tree has uncommitted or untracked changes; commit or stash them, "
+               "so the command runs on the sealed commit alone.")
+RERUN_MOVED = "re-ran the sealed commit; its pull request has since moved."
+REPO_SIGNERS_LIMIT = "signers read from this repository's own list; anyone who can edit the evidence can edit it."
+
+
+def _inside(root: Path, p: Path) -> bool:
+    return any(q == root or root in q.parents for q in (Path(os.path.abspath(p)), p.resolve()))
+
+
+def _rerun_trust(root: Path, rec: dict, signers: str) -> tuple:
+    """(who, refusal): who vouches for the record from outside the checkout, or why nothing does.
+    The HMAC key is this machine's own, so a record it verifies is already trusted from outside."""
+    if not rec.get("sig_ed25519"):
+        return "signed with this machine's HMAC key", ""
+    if signers:
+        al = Path(signers)
+        if _inside(root.resolve(), al):
+            return "", f"not re-run: the --signers file {al.resolve()} is inside this repository; pass a signer list kept outside it."
+    else:
+        al = _user_signers()
+        if _inside(root.resolve(), al):
+            return "", RERUN_NO_TRUST
+    fp = _ed_match(rec, al)
+    return (f"key {fp} matched in {al}", "") if fp else ("", RERUN_NO_TRUST)
+
+
+def _dirty(root: Path, ev: Path) -> bool:
+    """Uncommitted or untracked changes, ignored files aside. The evidence folder is left out: it is what is being checked,
+    and its records are written after the commit they seal."""
+    rel = os.path.relpath(ev, root)
+    r = subprocess.run(["git", "-C", str(root), "status", "--porcelain", "--untracked-files=all", "--", ".", f":(exclude){rel}"],
+                       capture_output=True, text=True)
+    return r.returncode != 0 or bool(r.stdout.strip())
 
 
 def _git(cwd: Path, *args: str) -> str:
@@ -489,11 +551,25 @@ def verify_record(repo, rid: str, rerun: bool = False, timeout: int = 1800, sign
         add("OpenProof verifier", bool(rec["external"].get("passed")), f"{rec['external'].get('cmd')} → exit {rec['external'].get('exit')}")
     if rerun:
         head = _git(root, "rev-parse", "HEAD")
-        if head != rec.get("commit"):
+        # The command comes from the record itself: run it only when schema, hash, chain and signature all check out here.
+        # A signature this machine can't check (an older HMAC record) is not enough, since a rewritten record can drop it.
+        unproven = [c["check"] for c in checks if c["check"] in ("schema", "hash", "chain", "signature") and c["ok"] is not True]
+        # The record's key must also be trusted from outside the checkout: anyone who can edit the evidence can edit the
+        # repository's own allowed_signers, so that list alone never makes a command run.
+        who, refusal = ("", "") if unproven else _rerun_trust(root, rec, signers)
+        if unproven or not any(c["check"] == "signature" for c in checks):
+            add("re-run", None, "not re-run: the record's " + (", ".join(unproven) or "signature") +
+                " can't be confirmed here, so its test command isn't trusted to run")
+        elif refusal:
+            add("re-run", None, refusal)
+        elif _dirty(root, ev):
+            add("re-run", None, RERUN_DIRTY)
+        elif head != rec.get("commit"):
             add("re-run", None, f"check out {rec.get('commit', '')[:12]} to re-run (HEAD is {head[:12]})")
         else:
             r = _run(t.get("cmd", ""), root, timeout)
-            add("re-run", r["passed"], f"exit {r['exit']} now")
+            moved = any(c["check"] == "pull request" and c["ok"] is False for c in checks)
+            add("re-run", r["passed"], f"exit {r['exit']} now; {who}" + (f". {RERUN_MOVED}" if moved else ""))
     integrity = all(c["ok"] is not False for c in checks if c["check"] in ("schema", "hash", "chain", "signature", "commit"))
     sealed = integrity and all(c["ok"] for c in checks if c["check"] in ("hash", "chain", "signature", "tests", "verdict")) and \
         all(c["ok"] is not False for c in checks if c["check"] in ("OpenProof verifier", "re-run", "pull request"))
@@ -522,9 +598,16 @@ def cmd_verify(repo: str, rid: str | None, rerun: bool, as_json: bool, signers: 
     ids = [rid] if rid else [l.get("id") for l in _ledger(root) if l.get("id")]
     if not ids:
         print("no evidence records yet (docs/ops/evidence/ledger.jsonl is empty)"); return 0
-    results = [verify_record(root, i, rerun, signers=signers) for i in ids]
+    results, seen = [], set()
+    for i in ids:   # a record the ledger lists more than once is re-run at most once
+        results.append(verify_record(root, i, rerun and i not in seen, signers=signers))
+        if rerun and i in seen:
+            results[-1]["checks"].append({"check": "re-run", "ok": None, "note": "not re-run again: the ledger lists this record more than once"})
+        seen.add(i)
     if as_json:
         print(json.dumps(results if not rid else results[0], indent=1)); return 0 if all(r["ok"] for r in results) else 1
+    if not signers:
+        print(REPO_SIGNERS_LIMIT)
     for r in results:
         sig = next((c["ok"] for c in r["checks"] if c["check"] == "signature"), None)
         mark = "SEALED" if r["sealed"] else ("BROKEN" if not r["ok"] else
@@ -1763,7 +1846,7 @@ def main(argv=None) -> int:
     s.add_argument("--evaluator", default=""); s.add_argument("--builder", default=""); s.add_argument("--challenger", default=""); s.add_argument("--defects", type=int, default=0)
     s.add_argument("--verifier", default="", help="an OpenProof verifier command; the record's path is appended"); s.add_argument("--timeout", type=int, default=1800)
     s = sub.add_parser("verify"); s.add_argument("repo", nargs="?", default="."); s.add_argument("id", nargs="?"); s.add_argument("--rerun", action="store_true"); s.add_argument("--json", action="store_true")
-    s.add_argument("--signers", default="", help="an allowed_signers file you trust, instead of the one in the repo")
+    s.add_argument("--signers", default="", help="an allowed_signers file you trust, instead of the one in the repo; with --rerun it must be outside the repo")
     s = sub.add_parser("cosign", help="add an Ed25519 signature to records this machine sealed, so anyone can check them"); s.add_argument("repo", nargs="?", default="."); s.add_argument("id", nargs="?")
     s = sub.add_parser("harness"); s.add_argument("repo", nargs="?", default="."); s.add_argument("--check", action="store_true"); s.add_argument("--commit", action="store_true", help="commit the harness files so every worktree carries the guard")
     s = sub.add_parser("run", help="one coordinator in the background, with no window, on one instruction"); s.add_argument("repo", nargs="?", default="."); s.add_argument("--tool", choices=sorted(HEADLESS), default="claude"); s.add_argument("--status", action="store_true"); s.add_argument("--stop", action="store_true"); s.add_argument("--tool-arg", action="append", default=[], help="an extra argument for the tool, added on your own judgement")
