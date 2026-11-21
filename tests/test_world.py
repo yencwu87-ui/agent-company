@@ -589,7 +589,8 @@ class WorldLifecycle(_KitRepo, unittest.TestCase):
         self.ready(); self.card(); self.trial()
         self.add(type="deploy", by="Owner", agent="builder-1", result="STARTED", gates={"scanned": "PASS"})
         self.assertEqual(self.life()["stage"], "Deployed")
-        for later, word in (("READY", "ready, nothing started"), ("START FAILED", "failed to start"), ("START WITHDRAWN", "start withdrawn")):
+        for later, word in (("READY", "ready, nothing started"), ("START FAILED", "failed to start"), ("START WITHDRAWN", "start withdrawn"),
+                            ("STARTING", "start not confirmed")):     # kit 1.6.0 writes STARTING before the command, STARTED after
             self.add(type="deploy", by="Owner", agent="builder-1", result=later, gates={"scanned": "PASS"})
             self.assertEqual((self.life()["stage"], self.steps()["Deployed"]), ("Trialled", word), later)
             self.add(type="deploy", by="Owner", agent="builder-1", result="STARTED", gates={"scanned": "PASS"})
