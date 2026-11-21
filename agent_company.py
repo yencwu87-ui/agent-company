@@ -1238,7 +1238,7 @@ def lifecycle_status(repo: str | Path, golden: dict | None = None) -> dict:
                   "note": f"golden image {golden.get('version', '?')}: {str(golden.get('result', 'not installed')).lower()}"})
 
     mine = lambda e, kind: e.get("type") == kind and _same_agent(e.get("agent"), agent)
-    runs = [e for e in (led or []) if agent and mine(e, "deploy") and e.get("result") in ("STARTED", "READY", "START FAILED", "START WITHDRAWN")]
+    runs = [e for e in (led or []) if agent and mine(e, "deploy") and e.get("result") in ("STARTING", "STARTED", "READY", "START FAILED", "START WITHDRAWN")]
     last = runs[-1] if runs else None
     gates = last.get("gates") if last and isinstance(last.get("gates"), dict) else {}
     if led is None:
@@ -1276,9 +1276,9 @@ def lifecycle_status(repo: str | Path, golden: dict | None = None) -> dict:
     if led is None:
         steps.append({"name": "Deployed", "state": "not shown", "note": why})
     elif last:
-        word = "done" if (deployed and last.get("result") == "STARTED") else {"READY": "ready, nothing started", "START FAILED": "failed to start", "START WITHDRAWN": "start withdrawn"}.get(last.get("result"), "not now")
+        word = "done" if (deployed and last.get("result") == "STARTED") else {"READY": "ready, nothing started", "START FAILED": "failed to start", "START WITHDRAWN": "start withdrawn", "STARTING": "start not confirmed"}.get(last.get("result"), "not now")
         steps.append({"name": "Deployed", "state": word,
-                      "note": f"{str(last.get('result'))[:12]} by {str(last.get('by', '?'))[:60]} at {str(last.get('ts', ''))[:20]} (ledger #{last.get('seq')})"})
+                      "note": f"{str(last.get('result'))[:16]} by {str(last.get('by', '?'))[:60]} at {str(last.get('ts', ''))[:20]} (ledger #{last.get('seq')})"})
     else:
         steps.append({"name": "Deployed", "state": "not yet", "note": "no deploy is recorded for this agent"})
 
