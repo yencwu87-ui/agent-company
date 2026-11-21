@@ -242,6 +242,7 @@ function renderCard(){
   c.append(row('Coordinators allowed','exactly 1'),row('Agents may merge','never','bad'))}
  if(s.id==='proof')c.append(row('Sealed records',String(W.proof.sealed),W.proof.sealed?'ok':''),row('Broken records',String(W.proof.broken),W.proof.broken?'bad':''));
  if(s.id==='proof'&&W.proof.unverified)c.append(row('Signature not checkable here',String(W.proof.unverified),'bad'));
+ if(s.id==='proof'&&W.proof.not_sealable)c.append(row('Seal lost since sealing',String(W.proof.not_sealable),'bad'));
  c.append(el('div','note',s.state==='done'?'This step has evidence in the repo.':s.how));
  if(s.action&&s.state==='next'&&!W.kill.on)c.append(actionBtn(s));
 }
@@ -251,8 +252,8 @@ let msgT;function say(t){const m=$('msg');m.textContent=t;m.classList.add('in');
 
 /* ---------- live data ---------- */
 async function api(path,body){const r=await fetch(path+'?token='+encodeURIComponent(TOKEN),body?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}:{cache:'no-store'});if(!r.ok)throw new Error(await r.text());return r.json()}
-let sig='';
-async function refresh(){let s;try{if(!TOKEN)throw 0;s=await api('/api/world')}catch(e){s=W&&!W.demo?null:DEMO;if(!s){$('badge-t').textContent='CONNECTION LOST · showing the last state read';$('badge').className='badge demo';return}}
+let sig='',pollSeq=0,applied=0;   // polls are numbered: an answer older than the newest one applied is dropped
+async function refresh(){const my=++pollSeq;let s;try{if(!TOKEN)throw 0;s=await api('/api/world')}catch(e){if(my<=applied)return;s=W&&!W.demo?null:DEMO;if(!s){$('badge-t').textContent='CONNECTION LOST · showing the last state read';$('badge').className='badge demo';return}}if(my<=applied)return;applied=my;
  const k=JSON.stringify({...s,read_at:''});W=s;if(k!==sig){sig=k;build();panels()}else stamp()}
 if(TOKEN){$('to-map').href='/?token='+encodeURIComponent(TOKEN);$('to-guild').href='/guild?token='+encodeURIComponent(TOKEN)}
 
