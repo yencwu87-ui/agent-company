@@ -1185,14 +1185,25 @@ def _sha_inside(root: Path, rel: str) -> str:
     return hashlib.sha256(data).hexdigest() if data is not None else "unreadable"
 
 
+# the kit's own scripts other than the stop script, in the order the kit's lifecycle.py hashes them
+_KIT_SCRIPTS = ("scripts/harness.py", "scripts/golden.py", "scripts/lifecycle.py", "scripts/codescan.py", "scripts/check_feature_list.py")
+
+
+def _same_agent(a, b) -> bool:
+    return isinstance(a, str) and isinstance(b, str) and a.strip().casefold() == b.strip().casefold()
+
+
 def _lifecycle_fingerprint(repo: str | Path) -> dict:
     """What a kit trial covers, computed the way the kit's lifecycle.py computes it."""
     root = Path(repo).resolve()
     img = _json_inside(root, "scripts/golden-image.json")
+    kit = hashlib.sha256("|".join(_sha_inside(root, f) for f in _KIT_SCRIPTS).encode()).hexdigest()
     return {"image": str(img.get("image_sha", "unreadable")) if isinstance(img, dict) else "unreadable",
             "settings": _sha_inside(root, ".claude/settings.json") + ":" + _sha_inside(root, ".claude/settings.local.json"),
             "declaration": _sha_inside(root, ".harness/declaration.json"),
-            "stop script": _sha_inside(root, "scripts/runtime.py")}
+            "stop script": _sha_inside(root, "scripts/runtime.py"),
+            "kit scripts": kit,
+            "code scan baseline": _sha_inside(root, "security/foxguard-baseline.json")}
 
 
 def lifecycle_status(repo: str | Path, golden: dict | None = None) -> dict:
@@ -1226,9 +1237,10 @@ def lifecycle_status(repo: str | Path, golden: dict | None = None) -> dict:
     steps.append({"name": "Fitted", "state": "done" if fitted else "failed",
                   "note": f"golden image {golden.get('version', '?')}: {str(golden.get('result', 'not installed')).lower()}"})
 
-    mine = lambda e, kind: e.get("type") == kind and isinstance(e.get("agent"), str) and e.get("agent") == agent
-    runs = [e for e in (led or []) if agent and mine(e, "deploy") and e.get("result") in ("STARTED", "READY")]
+    mine = lambda e, kind: e.get("type") == kind and _same_agent(e.get("agent"), agent)
+    runs = [e for e in (led or []) if agent and mine(e, "deploy") and e.get("result") in ("STARTED", "READY", "START FAILED")]
     last = runs[-1] if runs else None
+    started = [e for e in runs if e.get("result") == "STARTED"]
     gates = last.get("gates") if last and isinstance(last.get("gates"), dict) else {}
     if led is None:
         steps.append({"name": "Scanned", "state": "not shown", "note": why})
@@ -1251,19 +1263,23 @@ def lifecycle_status(repo: str | Path, golden: dict | None = None) -> dict:
             then, now = t.get("fingerprint"), _lifecycle_fingerprint(root)
             then = then if isinstance(then, dict) else {}
             changed = [k for k in now if then.get(k) != now[k]]
-            if changed:
+            unknown = [str(k)[:40] for k in then if k not in now]
+            if unknown:                             # a newer kit covers more than this screen can check
+                steps.append({"name": "Trialled", "state": "not shown", "note": "the trial covers parts this version of the screen cannot check: " + ", ".join(unknown[:4])})
+            elif changed:
                 side.append("REFIT")
                 steps.append({"name": "Trialled", "state": "refit", "note": f"changed since the trial of {str(t.get('ts', ''))[:20]}: the " + ", the ".join(changed)})
             else:
                 trialled = True
                 steps.append({"name": "Trialled", "state": "done", "note": f"offline trial passed {str(t.get('ts', ''))[:20]} (ledger #{t.get('seq')})"})
 
-    deployed = bool(last) and trialled
+    deployed = bool(started) and trialled
     if led is None:
         steps.append({"name": "Deployed", "state": "not shown", "note": why})
     elif last:
-        steps.append({"name": "Deployed", "state": "done" if deployed else "not now",
-                      "note": f"{str(last.get('result'))[:10]} by {str(last.get('by', '?'))[:60]} at {str(last.get('ts', ''))[:20]} (ledger #{last.get('seq')})"})
+        word = "done" if (deployed and last.get("result") == "STARTED") else {"READY": "ready, nothing started", "START FAILED": "failed to start"}.get(last.get("result"), "not now")
+        steps.append({"name": "Deployed", "state": word,
+                      "note": f"{str(last.get('result'))[:12]} by {str(last.get('by', '?'))[:60]} at {str(last.get('ts', ''))[:20]} (ledger #{last.get('seq')})"})
     else:
         steps.append({"name": "Deployed", "state": "not yet", "note": "no deploy is recorded for this agent"})
 
@@ -1277,7 +1293,7 @@ def lifecycle_status(repo: str | Path, golden: dict | None = None) -> dict:
     if led and agent and any(mine(e, "retire-agent") for e in led):
         stage = "Retired"
     out = {"installed": True, "agent": agent, "stage": stage, "side": side, "steps": steps,
-           "last_deploy": ({"by": str(last.get("by", "?"))[:60], "ts": str(last.get("ts", ""))[:30], "result": str(last.get("result"))[:10]} if last else None)}
+           "last_deploy": ({"by": str(last.get("by", "?"))[:60], "ts": str(last.get("ts", ""))[:30], "result": str(last.get("result"))[:12]} if last else None)}
     if led is None:
         out["untrusted"] = why
     return out

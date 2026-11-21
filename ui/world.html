@@ -228,7 +228,7 @@ function kitRows(c){const G=kit().golden;c.append(el('div','note','Harness Marke
  lifeRows(c)}
 function lifeRows(c){const L=life();if(!L.installed)return;
  c.append(el('div','note','Deployment lifecycle'+(L.agent?' of '+L.agent:'')+' (read only)'),row('Stage',L.stage+(L.side.length?' · '+L.side.join(', '):''),L.side.length||L.stage==='Retired'?'bad':L.stage==='Deployed'?'ok':''));
- L.steps.forEach(s=>c.append(row(s.name,s.state+(s.note?' · '+s.note:''),s.state==='done'?'ok':(s.state==='failed'||s.state==='refit'||s.state==='not shown'||s.state==='not now')?'bad':'')));
+ L.steps.forEach(s=>c.append(row(s.name,s.state+(s.note?' · '+s.note:''),s.state==='done'?'ok':(s.state==='failed'||s.state==='refit'||s.state==='not shown'||s.state==='not now'||s.state==='failed to start')?'bad':'')));
  if(L.untrusted)c.append(row('Ledger','not trusted: '+L.untrusted,'bad'));
  c.append(el('div','note','Read from the declaration, the golden image and the ledger, in order: a stage shows only when every stage before it holds. It shows that steps were taken and recorded, not how the agent behaves. This screen runs no scanner, so the scan appears only as the last deploy recorded it. The steps themselves are run from the terminal with the kit’s lifecycle script, which is not released yet.'))}
 function row(k,v,cls){const r=el('div','row');r.append(el('span','',k),el('b',cls||'',v));return r}

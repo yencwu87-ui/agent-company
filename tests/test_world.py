@@ -575,6 +575,35 @@ class WorldLifecycle(_KitRepo, unittest.TestCase):
         self.card(purpose="changed")
         self.assertEqual((self.life()["stage"], self.life()["side"]), ("Fitted", ["REFIT"]))
 
+    def test_only_a_started_command_counts_as_deployed(self):
+        self.ready(); self.card(); self.trial()
+        self.add(type="deploy", by="Owner", agent="builder-1", result="READY", gates={"scanned": "PASS"})
+        self.assertEqual((self.life()["stage"], self.steps()["Deployed"]), ("Trialled", "ready, nothing started"))
+        self.add(type="deploy", by="Owner", agent="builder-1", result="START FAILED", gates={"scanned": "PASS"})
+        self.assertEqual((self.life()["stage"], self.steps()["Deployed"]), ("Trialled", "failed to start"))
+        self.add(type="deploy", by="Owner", agent=" Builder-1", result="STARTED", gates={"scanned": "PASS"})
+        self.assertEqual(self.life()["stage"], "Deployed")
+
+    def test_replacing_a_kit_script_or_the_scan_baseline_after_the_trial_is_refit(self):
+        self.ready(); self.card(); self.trial()
+        (self.repo / "scripts/golden.py").write_text("print('MATCH')\n", encoding="utf-8")
+        self.assertEqual(self.life()["side"], ["REFIT"])
+        self.assertIn("kit scripts", json.dumps(self.life()["steps"]))
+        self.trial()
+        (self.repo / "security").mkdir(); (self.repo / "security/foxguard-baseline.json").write_text("{}", encoding="utf-8")
+        self.assertIn("code scan baseline", json.dumps(self.life()["steps"]))
+
+    def test_a_trial_that_covers_more_than_the_screen_knows_is_not_shown_as_passed(self):
+        self.ready(); self.card()
+        self.add(type="trial", kind="offline", by="Owner", result="PASS", fingerprint={**ac._lifecycle_fingerprint(self.repo), "a newer part": "abc"})
+        self.assertEqual((self.life()["stage"], self.steps()["Trialled"]), ("Fitted", "not shown"))
+
+    def test_a_retired_name_written_differently_is_still_retired(self):
+        self.ready(); self.card(); self.trial()
+        self.add(type="retire-agent", by="Owner", agent="builder-1", reason="done")
+        self.card(agent="Builder-1 "); self.trial()
+        self.assertEqual(self.life()["stage"], "Retired")
+
     def test_the_stop_is_a_side_state(self):
         self.ready(); self.card(); self.trial()
         (self.repo / ".harness/KILL").write_text("{}", encoding="utf-8")
