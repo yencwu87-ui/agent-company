@@ -1006,6 +1006,13 @@ def stage(repo: str | Path) -> dict:
     """Where this project is, and the one next step, for the first-run guide in the Guild."""
     root = Path(repo).resolve()
     ops = ops_dir(root)
+    # A ledger line alone is not proof: step 6 is done only while at least one record verifies and none is broken.
+    recs = [verify_record(root, l["id"]) for l in _ledger(root) if l.get("id")][-50:]
+    broken = sum(1 for r in recs if not r.get("ok"))
+    proof_ok = any(r.get("sealed") for r in recs) and not broken
+    proof_how = ("After an approving review: python3 agent_company.py seal . --quest 001 --pr <link> --test-cmd \"<tests>\"" if not broken else
+                 f"{broken} evidence record(s) no longer match what was sealed. Run python3 agent_company.py verify . to see which, "
+                 "find out who changed it and why, and seal again only after a fresh approving review.")
     steps = [
         ("Set up", (ops / "inbox").is_dir(), "Agent Company is set up in this project."),
         ("Forge a team", (ops / "guild" / "guild.json").exists() or bool(team_of(ops)), "Forge characters, or load the demo guild, then press Write to my repo on the War map."),
@@ -1013,11 +1020,12 @@ def stage(repo: str | Path) -> dict:
         ("Write quests", any((ops / "inbox").glob("[0-9][0-9][0-9]_*.md")) if (ops / "inbox").is_dir() else False, "Add a quest on the War map and sound the horn."),
         ("Start the coordinator", coordinator_started(ops),
          "Run: python3 agent_company.py start . --tool claude --run  (or codex, gemini)"),
-        ("Seal proof", bool(_ledger(root)), "After an approving review: python3 agent_company.py seal . --quest 001 --pr <link> --test-cmd \"<tests>\""),
+        ("Seal proof", proof_ok, proof_how),
     ]
     done = [s for s in steps if s[1]]
     nxt = next((s for s in steps if not s[1]), None)
-    return {"steps": [{"name": n, "done": bool(d), "how": h} for n, d, h in steps], "done": len(done), "total": len(steps),
+    return {"steps": [{"name": n, "done": bool(d), "how": h, **({"broken": broken} if n == "Seal proof" and broken else {})} for n, d, h in steps],
+            "done": len(done), "total": len(steps),
             "next": {"name": nxt[0], "how": nxt[2]} if nxt else None}
 
 
@@ -1165,7 +1173,7 @@ def world_state(repo: str | Path) -> dict:
         ok = raw[step]["done"] and (sid != "harness" or hs["committed"])
         state = "locked" if open_seen else ("done" if ok else "next")
         open_seen = open_seen or not ok
-        st = {"id": sid, "name": name, "step": WORLD_LABEL.get(sid, step), "state": state, "how": WORLD_HOW.get(sid, raw[step]["how"])}
+        st = {"id": sid, "name": name, "step": WORLD_LABEL.get(sid, step), "state": state, "how": raw[step]["how"] if raw[step].get("broken") else WORLD_HOW.get(sid, raw[step]["how"])}
         if sid == "harness":
             st["action"] = "install-harness"
             if hs["fitted"] == 6 and not hs["committed"]:
