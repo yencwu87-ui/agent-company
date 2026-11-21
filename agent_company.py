@@ -283,14 +283,19 @@ def _ed_sign(root: Path, digest: str) -> dict:
     return {"sig_ed25519": signature, "signer": _ed_fingerprint(pub)}
 
 
-def _ed_verify(root: Path, rec: dict, signers: str = "") -> tuple:
-    """(True/False/None, note) for a record's Ed25519 signature."""
+def _ed_verify(root: Path, rec: dict, signers: str = "", snap: dict | None = None) -> tuple:
+    """(True/False/None, note) for a record's Ed25519 signature. With `snap` (a proof snapshot) the allowed signers
+    are the bytes read into that snapshot, not the file as it is now."""
     if not _ssh_keygen():
         return None, "ssh-keygen isn't on this machine, so the Ed25519 signature can't be checked here"
     al = Path(signers) if signers else _evdir(root) / SIGNERS
-    if not al.exists():
+    from_snap = snap is not None and not signers
+    if (snap["signers"] is None) if from_snap else not al.exists():
         return False, f"no {al.name} to check the signature against"
     with tempfile.TemporaryDirectory() as d:
+        if from_snap:
+            al = Path(d) / SIGNERS
+            al.write_bytes(snap["signers"])
         sig = Path(d) / "s.sig"
         sig.write_text(rec.get("sig_ed25519", ""), encoding="utf-8")
         r = subprocess.run([_ssh_keygen(), "-Y", "verify", "-f", str(al), "-I", "owner", "-n", ED_NS, "-s", str(sig)],
@@ -314,18 +319,36 @@ def _evdir(repo: str | Path) -> Path:
     return d
 
 
-def _ledger(repo) -> list[dict]:
+def _read_ledger(repo) -> list[dict]:
+    """The ledger as one snapshot, every line in order. Never raises. A line that is not a JSON object is {"broken": ...};
+    a blank line is {"blank": True} (unless every line is blank: then the ledger is empty); a ledger that can't be read
+    or decoded is the single entry {"unreadable": why}."""
     f = ops_dir(repo) / "evidence" / "ledger.jsonl"
-    if not f.exists():
+    try:
+        if not f.exists() and not f.is_symlink():
+            return []
+        text = f.read_bytes().decode("utf-8")
+    except (OSError, UnicodeDecodeError) as e:
+        return [{"unreadable": type(e).__name__}]
+    lines = text.splitlines()
+    if not any(l.strip() for l in lines):
         return []
     out = []
-    for line in f.read_text(encoding="utf-8").splitlines():
-        if line.strip():
-            try:
-                out.append(json.loads(line))
-            except ValueError:
-                out.append({"broken": line[:80]})
+    for line in lines:
+        if not line.strip():
+            out.append({"blank": True})
+            continue
+        try:
+            e = json.loads(line)
+        except (ValueError, RecursionError):
+            e = None
+        out.append(e if isinstance(e, dict) else {"broken": line[:80]})   # `null`, a list or a bare value is broken too
     return out
+
+
+def _ledger(repo) -> list[dict]:
+    """The ledger's entries without blank lines (for sealing the next record and listing records)."""
+    return [e for e in _read_ledger(repo) if not e.get("blank")]
 
 
 def _run(cmd: str, cwd: Path, timeout: int) -> dict:
@@ -423,7 +446,19 @@ def cmd_seal(repo: str, a) -> int:
     return 0 if v["sealed"] else 1
 
 
-def verify_record(repo, rid: str, rerun: bool = False, timeout: int = 1800, signers: str = "") -> dict:
+def verify_record(repo, rid: str, rerun: bool = False, timeout: int = 1800, signers: str = "", snap: dict | None = None) -> dict:
+    """Check one record. Never raises on bad record or ledger content: such a record is reported broken. `snap` is a
+    proof_snapshot() (the ledger, every record file and allowed_signers, read once); pass the same one to every record
+    of a refresh so they are all judged against one copy of the evidence."""
+    try:
+        return _verify_record(repo, rid, rerun, timeout, signers, snap)
+    except (ValueError, TypeError, AttributeError, KeyError, IndexError, RecursionError, UnicodeError, OSError) as e:
+        note = f"the record or the ledger can't be read as a sealed record ({type(e).__name__})"
+        return {"id": rid if isinstance(rid, str) else repr(rid)[:40], "ok": False, "sealed": False,
+                "checks": [{"check": "record file", "ok": False, "note": note}], "why": [f"record file: {note}"]}
+
+
+def _verify_record(repo, rid: str, rerun: bool, timeout: int, signers: str, snap: dict | None) -> dict:
     root = Path(repo).resolve()
     ev = ops_dir(root) / "evidence"
     checks, why = [], []
@@ -435,20 +470,30 @@ def verify_record(repo, rid: str, rerun: bool = False, timeout: int = 1800, sign
         add("record id", False, "expected NNN-, trust-, card- or council-<12 hex>")
         return {"id": rid, "ok": False, "sealed": False, "checks": checks, "why": why}
     f = ev / f"{rid}.json"
-    if not f.exists():
+    if (f.name not in snap["files"]) if snap is not None else not f.exists():
         add("record file", False, f"{f.name} not found")
         return {"id": rid, "ok": False, "sealed": False, "checks": checks, "why": why}
-    rec = json.loads(f.read_text(encoding="utf-8"))
+    raw = snap["files"][f.name] if snap is not None else f.read_bytes()
+    if raw is None:
+        add("record file", False, f"{f.name} can't be read")
+        return {"id": rid, "ok": False, "sealed": False, "checks": checks, "why": why}
+    rec = json.loads(raw.decode("utf-8"))
+    if not isinstance(rec, dict):
+        add("record file", False, f"{f.name} is not a JSON object")
+        return {"id": rid, "ok": False, "sealed": False, "checks": checks, "why": why}
     add("schema", rec.get("schema") == SCHEMA, rec.get("schema", ""))
     h = hashlib.sha256(_canon(rec)).hexdigest()
     add("hash", h == rec.get("hash") and rid == f"{rec.get('quest') or rec.get('kind')}-{h[:12]}", "content matches its hash" if h == rec.get("hash") else "record was changed after sealing")
-    led = _ledger(root)
+    led = [e for e in (snap["ledger"] if snap is not None else _read_ledger(root)) if not e.get("blank")]
     idx = next((i for i, l in enumerate(led) if l.get("id") == rid), -1)
     chain_ok = idx >= 0 and led[idx].get("hash") == rec.get("hash") and led[idx].get("prev") == rec.get("prev") and \
         (rec.get("prev") == (led[idx - 1].get("hash") if idx > 0 else "0" * 64))
     add("chain", chain_ok, f"entry {idx + 1} of {len(led)} in ledger.jsonl" if chain_ok else "missing from the ledger, or the ledger was edited")
+    copies = sum(1 for l in led if l.get("id") == rid)
+    if copies > 1:
+        add("ledger entry", False, f"this id appears {copies} times in ledger.jsonl: the ledger was edited")
     if rec.get("sig_ed25519"):
-        ok, note = _ed_verify(root, rec, signers)
+        ok, note = _ed_verify(root, rec, signers, snap)
         add("signature", ok, note)
     else:
         k = _key(False)
@@ -478,8 +523,8 @@ def verify_record(repo, rid: str, rerun: bool = False, timeout: int = 1800, sign
     add("verdict", rec.get("verdict") == "approve", rec.get("verdict", ""))
     if rec.get("pr"):
         head, src = pr_head(root, rec["pr"])
-        if head is None:
-            add("pull request", None, src)
+        if head is None:                       # not confirmed: step 6 treats this as open, never as a pass
+            add("pull request", None, f"PR head not checked: GitHub not reached ({src})")
         else:
             add("pull request", head == rec.get("commit"), f"head {head[:12]} matches the sealed commit ({src})" if head == rec.get("commit") else
                 f"head is now {head[:12]}, sealed {rec.get('commit', '')[:12]}: the PR changed after sealing; seal it again")
@@ -494,7 +539,7 @@ def verify_record(repo, rid: str, rerun: bool = False, timeout: int = 1800, sign
         else:
             r = _run(t.get("cmd", ""), root, timeout)
             add("re-run", r["passed"], f"exit {r['exit']} now")
-    integrity = all(c["ok"] is not False for c in checks if c["check"] in ("schema", "hash", "chain", "signature", "commit"))
+    integrity = all(c["ok"] is not False for c in checks if c["check"] in ("schema", "hash", "chain", "ledger entry", "signature", "commit"))
     sealed = integrity and all(c["ok"] for c in checks if c["check"] in ("hash", "chain", "signature", "tests", "verdict")) and \
         all(c["ok"] is not False for c in checks if c["check"] in ("OpenProof verifier", "re-run", "pull request"))
     return {"id": rid, "quest": rec.get("quest"), "pr": rec.get("pr"), "verdict": rec.get("verdict"), "tests": t.get("cmd"),
@@ -517,22 +562,191 @@ def seal_doc(root: Path, kind: str, content: dict) -> str:
     return rec["id"]
 
 
+RECORD_FILE = re.compile(r"(\d{3}|trust|card|council)-[0-9a-f]{12}\.json")
+
+
+def _broken_row(rid: str, check: str, note: str) -> dict:
+    return {"id": rid, "ok": False, "sealed": False, "checks": [{"check": check, "ok": False, "note": note}], "why": [f"{check}: {note}"]}
+
+
+def _rerun_file(root: Path) -> Path:
+    return ops_dir(root) / "outbox" / "RERUN.json"
+
+
+def _read_rerun(root: Path) -> dict:
+    """The last `verify --rerun` result per record id, as {id: {"passed": bool, "exit": int, "at": str}}. Never raises."""
+    try:
+        d = json.loads(_rerun_file(root).read_text(encoding="utf-8"))
+    except (OSError, ValueError, RecursionError, UnicodeError):
+        return {}
+    return {k: v for k, v in d.items() if isinstance(v, dict)} if isinstance(d, dict) else {}
+
+
+def _save_rerun(root: Path, rows: list[dict]) -> dict:
+    """Keep the last re-run result of every record that was actually re-run, so the World shows it too."""
+    last = _read_rerun(root)
+    at = time.strftime("%Y-%m-%dT%H:%M:%S%z")
+    for r in rows:
+        c = next((c for c in r.get("checks", []) if c.get("check") == "re-run"), None)
+        if c and c.get("ok") in (True, False):
+            last[r["id"]] = {"passed": c["ok"], "note": c.get("note", ""), "at": at}
+    try:
+        _rerun_file(root).parent.mkdir(parents=True, exist_ok=True)
+        _rerun_file(root).write_text(json.dumps(last, indent=1), encoding="utf-8")
+    except OSError:
+        pass
+    return last
+
+
+def proof_snapshot(root: Path) -> dict:
+    """The evidence as ONE in-memory copy: the ledger, every record file in the evidence folder, allowed_signers and the
+    last re-run results. Every check of a refresh runs on this copy, so a refresh can't mix two versions."""
+    ev = ops_dir(root) / "evidence"
+    snap = {"ledger": _read_ledger(root), "files": {}, "signers": None, "listing": True, "rerun": _read_rerun(root)}
+    try:
+        names = sorted(p.name for p in ev.iterdir() if RECORD_FILE.fullmatch(p.name)) if ev.is_dir() else []
+    except OSError:
+        names, snap["listing"] = [], False
+    for n in names:
+        try:
+            snap["files"][n] = (ev / n).read_bytes()
+        except OSError:
+            snap["files"][n] = None
+    try:
+        snap["signers"] = (ev / SIGNERS).read_bytes() if (ev / SIGNERS).is_file() else None
+    except OSError:
+        snap["signers"] = None
+    return snap
+
+
+def proof_rows(root: Path, rerun: bool = False, signers: str = "", snap: dict | None = None) -> list[dict]:
+    """One result per ledger line plus one per stray record file, judged against ONE snapshot of the evidence.
+    Broken rows: an unreadable ledger (one row), a blank line, a line that is not a JSON object with an id, every line
+    whose id appears more than once, and every record file in the evidence folder that has no ledger line."""
+    snap = snap if snap is not None else proof_snapshot(root)
+    led = snap["ledger"]
+    if led and "unreadable" in led[0]:
+        return [_broken_row("(ledger unreadable)", "ledger", "ledger unreadable: docs/ops/evidence/ledger.jsonl can't be read "
+                            f"as UTF-8 text ({led[0]['unreadable']}). Find out who changed it and restore it from git.")]
+    seen: dict = {}
+    for l in led:
+        if isinstance(l.get("id"), str):
+            seen[l["id"]] = seen.get(l["id"], 0) + 1
+    rows = []
+    for n, l in enumerate(led, 1):
+        i = l.get("id")
+        if l.get("blank"):
+            rows.append(_broken_row(f"(ledger line {n})", "ledger entry", f"ledger line {n} is blank: a record's line may have been wiped"))
+            continue
+        if not isinstance(i, str) or not i or "broken" in l:
+            rows.append(_broken_row(f"(ledger line {n})", "ledger entry", f"ledger line {n} is not a complete record (not a JSON object with an id)"))
+            continue
+        r = verify_record(root, i, rerun, signers=signers, snap=snap)
+        if seen[i] > 1 and r.get("ok"):
+            note = f"this id appears {seen[i]} times in ledger.jsonl: the ledger was edited"
+            r = {**r, "ok": False, "sealed": False, "checks": r.get("checks", []) + [{"check": "ledger entry", "ok": False, "note": note}],
+                 "why": r.get("why", []) + [f"ledger entry: {note}"]}
+        rows.append(r)
+    if not snap["listing"]:
+        rows.append(_broken_row("(evidence folder)", "record file", "docs/ops/evidence can't be listed"))
+    for name in snap["files"]:
+        if name[:-5] not in seen:
+            rows.append(_broken_row(name[:-5], "record file", f"record file not in the ledger: {name}"))
+    return rows
+
+
+def _check_ok(r: dict, name: str):
+    return next((c.get("ok") for c in r.get("checks", []) if c.get("check") == name), None)
+
+
+def _quest_problem(r: dict, rerun: dict) -> str | None:
+    """Why the LATEST record of a quest is not a seal that holds, or None when it holds."""
+    v = r.get("verdict")
+    if v == "changes":
+        return "latest review requested changes"
+    if v == "reject":
+        return "latest review rejected it"
+    if v != "approve":
+        return f"latest review's verdict is {str(v)[:20]!r}, not approve"
+    if not r.get("tests_passed"):
+        return "the latest seal's tests failed"
+    pr = _check_ok(r, "pull request")
+    if pr is False:
+        return "the pull request moved after sealing"
+    if r.get("pr") and pr is not True:
+        return "PR head not checked: GitHub not reached"
+    if _check_ok(r, "OpenProof verifier") is False:
+        return "the OpenProof verifier refused it"
+    if _check_ok(r, "re-run") is False or rerun.get(r.get("id"), {}).get("passed") is False:
+        return "the tests failed when re-run (python3 agent_company.py verify . --rerun)"
+    if not r.get("sealed"):
+        return "the latest record is not sealed"
+    return None
+
+
+def proof_eval(rows: list[dict], rerun: dict) -> dict:
+    """Step 6 from one set of rows. Done only when nothing is broken, every record's signature is checkable here, at
+    least one quest exists, and every quest's LATEST record (by ledger order; the quest is read from the hashed record,
+    never from the ledger line) is a seal that holds. Trust, card and council records never close step 6 alone."""
+    broken = [r for r in rows if not r.get("ok")]
+    unverified = [r for r in rows if r.get("ok") and _check_ok(r, "signature") is not True]
+    latest: dict = {}
+    for r in rows:
+        if r.get("ok") and not r.get("kind") and isinstance(r.get("quest"), str):
+            latest[r["quest"]] = r
+    problems = {q: p for q, p in ((q, _quest_problem(r, rerun)) for q, r in sorted(latest.items())) if p}
+    done = bool(latest) and not broken and not unverified and not problems
+    if broken:
+        how = (f"{len(broken)} evidence record(s) or ledger line(s) no longer match what was sealed. Run python3 agent_company.py verify . "
+               "to see which, find out who changed it and why, and seal again only after a fresh approving review.")
+    elif unverified:
+        how = (f"{len(unverified)} evidence record(s) have a signature this machine can't check (an older HMAC seal, or none). "
+               "Run `agent_company.py cosign` on the machine that sealed it.")
+    elif problems:
+        how = " ".join(f"Quest {q}: {p}; seal again after an approving review." for q, p in problems.items())
+    elif not latest:
+        how = ("No quest has a seal yet" + (" (a trust snapshot, card or council record is not a quest seal)" if rows else "") +
+               ". After an approving review: python3 agent_company.py seal . --quest 001 --pr <link> --test-cmd \"<tests>\"")
+    else:
+        how = "Every quest's latest review is a seal that holds."
+    return {"sealed": sum(1 for r in rows if r.get("ok") and r.get("sealed")), "broken": len(broken), "unverified": len(unverified),
+            "quests": len(latest), "open_quests": len(problems), "done": done, "how": how}
+
+
+def proof_status(root: Path) -> dict:
+    """Step 6, from one snapshot of the evidence: every line and every record file counts (no cap), so nothing can hide."""
+    snap = proof_snapshot(root)
+    return proof_eval(proof_rows(root, snap=snap), snap["rerun"])
+
+
 def cmd_verify(repo: str, rid: str | None, rerun: bool, as_json: bool, signers: str = "") -> int:
     root = Path(repo).resolve()
-    ids = [rid] if rid else [l.get("id") for l in _ledger(root) if l.get("id")]
-    if not ids:
-        print("no evidence records yet (docs/ops/evidence/ledger.jsonl is empty)"); return 0
-    results = [verify_record(root, i, rerun, signers=signers) for i in ids]
+    snap = proof_snapshot(root)
+    results = [verify_record(root, rid, rerun, signers=signers, snap=snap)] if rid else proof_rows(root, rerun, signers, snap)
+    last = _save_rerun(root, results) if rerun else snap["rerun"]
+    if rid:
+        rc = 0 if results[0]["ok"] else 1
+        ev = None
+    else:   # `verify .` passes exactly when step 6 would be done, so the CLI and the World never disagree
+        ev = proof_eval(results, last)
+        rc = 0 if ev["done"] else 1
+        if not results:
+            print("[]" if as_json else "no evidence records yet (docs/ops/evidence/ledger.jsonl is empty): step 6 (Seal proof) is not done")
+            return 1
     if as_json:
-        print(json.dumps(results if not rid else results[0], indent=1)); return 0 if all(r["ok"] for r in results) else 1
+        print(json.dumps(results if not rid else results[0], indent=1)); return rc
     for r in results:
-        sig = next((c["ok"] for c in r["checks"] if c["check"] == "signature"), None)
+        sig = _check_ok(r, "signature")
         mark = "SEALED" if r["sealed"] else ("BROKEN" if not r["ok"] else
                                               "INTACT, SIGNATURE NOT CHECKABLE HERE" if sig is None else "INTACT, NOT SEALABLE")
+        if r["sealed"] and r.get("pr") and _check_ok(r, "pull request") is not True:
+            mark = "SEALED, PR HEAD NOT CHECKED: GitHub not reached"
         print(f"{r['id']}  {mark}")
         for c in r["checks"]:
             print(f"   {'✓' if c['ok'] else ('–' if c['ok'] is None else '✗')} {c['check']}: {c['note']}")
-    return 0 if all(r["ok"] for r in results) else 1
+    if ev is not None:
+        print(("step 6 (Seal proof) is done: " if ev["done"] else "step 6 (Seal proof) is open: ") + ev["how"])
+    return rc
 
 
 # ---------------------------------------------------------------- harness: install and check
@@ -968,7 +1182,7 @@ def doctor(repo: str | Path | None = None) -> list[dict]:
                               ("inside the project: " + ", ".join(inside)) if inside else "none inside the project",
                               "Move real data to a folder outside this project. The guard is a backstop; keeping real data out of the agents' folder is the control."))
             led = _ledger(root)
-            out.append(_check("Evidence ledger", (all(verify_record(root, l["id"])["ok"] for l in led if l.get("id")) if led else None),
+            out.append(_check("Evidence ledger", (all(r["ok"] for r in proof_rows(root)) if led else None),
                               f"{len(led)} record(s)" if led else "no records yet: the evaluator seals after a review", "Run: python3 agent_company.py verify " + str(root)))
     return out
 
@@ -1002,10 +1216,14 @@ def coordinator_started(ops: Path) -> bool:
     return p.exists() and bool(re.search(r"^Time:\s*\d", p.read_text(encoding="utf-8", errors="replace"), re.M))
 
 
-def stage(repo: str | Path) -> dict:
-    """Where this project is, and the one next step, for the first-run guide in the Guild."""
+def stage(repo: str | Path, proof: dict | None = None) -> dict:
+    """Where this project is, and the one next step, for the first-run guide in the Guild. `proof` is proof_status(),
+    passed in by world_state() so the records are verified once per refresh."""
     root = Path(repo).resolve()
     ops = ops_dir(root)
+    # A ledger line alone is not proof: step 6 follows proof_eval() (the latest review per quest decides; see there).
+    proof = proof if proof is not None else proof_status(root)
+    proof_ok, proof_how = proof["done"], proof["how"]
     steps = [
         ("Set up", (ops / "inbox").is_dir(), "Agent Company is set up in this project."),
         ("Forge a team", (ops / "guild" / "guild.json").exists() or bool(team_of(ops)), "Forge characters, or load the demo guild, then press Write to my repo on the War map."),
@@ -1013,11 +1231,13 @@ def stage(repo: str | Path) -> dict:
         ("Write quests", any((ops / "inbox").glob("[0-9][0-9][0-9]_*.md")) if (ops / "inbox").is_dir() else False, "Add a quest on the War map and sound the horn."),
         ("Start the coordinator", coordinator_started(ops),
          "Run: python3 agent_company.py start . --tool claude --run  (or codex, gemini)"),
-        ("Seal proof", bool(_ledger(root)), "After an approving review: python3 agent_company.py seal . --quest 001 --pr <link> --test-cmd \"<tests>\""),
+        ("Seal proof", proof_ok, proof_how),
     ]
     done = [s for s in steps if s[1]]
     nxt = next((s for s in steps if not s[1]), None)
-    return {"steps": [{"name": n, "done": bool(d), "how": h} for n, d, h in steps], "done": len(done), "total": len(steps),
+    extra = {k: proof[k] for k in ("broken", "unverified", "open_quests") if proof.get(k)}
+    return {"steps": [{"name": n, "done": bool(d), "how": h, **(extra if n == "Seal proof" else {})} for n, d, h in steps],
+            "done": len(done), "total": len(steps),
             "next": {"name": nxt[0], "how": nxt[2]} if nxt else None}
 
 
@@ -1158,14 +1378,15 @@ def world_state(repo: str | Path) -> dict:
     station before it is done, so the screen never shows a step as finished while an earlier one is still open."""
     root = Path(repo).resolve()
     ops = ops_dir(root)
-    raw = {s["name"]: s for s in stage(root)["steps"]}
+    proof = proof_status(root)              # verified once, shared with stage(), so the two can't disagree
+    raw = {s["name"]: s for s in stage(root, proof)["steps"]}
     stations, open_seen = [], False
     hs = harness_status(root)
     for sid, step, name in WORLD_STATIONS:
         ok = raw[step]["done"] and (sid != "harness" or hs["committed"])
         state = "locked" if open_seen else ("done" if ok else "next")
         open_seen = open_seen or not ok
-        st = {"id": sid, "name": name, "step": WORLD_LABEL.get(sid, step), "state": state, "how": WORLD_HOW.get(sid, raw[step]["how"])}
+        st = {"id": sid, "name": name, "step": WORLD_LABEL.get(sid, step), "state": state, "how": raw[step]["how"] if (raw[step].get("broken") or raw[step].get("unverified") or raw[step].get("open_quests")) else WORLD_HOW.get(sid, raw[step]["how"])}
         if sid == "harness":
             st["action"] = "install-harness"
             if hs["fitted"] == 6 and not hs["committed"]:
@@ -1174,7 +1395,6 @@ def world_state(repo: str | Path) -> dict:
                              "the guard. Press Commit the harness files.")
         stations.append(st)
     team = team_of(ops)
-    recs = [verify_record(root, l["id"]) for l in _ledger(root) if l.get("id")][-50:]
     kill = {"on": False}
     kf = kill_file(root)
     if kf is not None:
@@ -1185,7 +1405,7 @@ def world_state(repo: str | Path) -> dict:
     return {"version": VERSION, "repo": root.name, "stations": stations, "harness": hs, "team": team, "runner": runner_status(root),
             "orders": {"pending": len(list(inbox.glob("[0-9][0-9][0-9]_*.md"))) if inbox.is_dir() else 0,
                        "done": len(list(done.glob("[0-9][0-9][0-9]_*.md"))) if done.is_dir() else 0},
-            "proof": {"sealed": sum(1 for r in recs if r.get("sealed")), "broken": sum(1 for r in recs if not r.get("ok"))},
+            "proof": {k: proof[k] for k in ("sealed", "broken", "unverified", "quests", "open_quests")},
             "kill": kill, "kit": {"golden": golden_status(root), "recovery": recovery_status(root)},
             "read_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
 
