@@ -38,7 +38,7 @@ class WorldState(unittest.TestCase):
         self.assertEqual(w["version"], ac.VERSION)
         self.assertEqual(w["harness"]["fitted"], 0)
         self.assertEqual(w["orders"], {"pending": 0, "done": 0})
-        self.assertEqual(w["proof"], {"sealed": 0, "broken": 0, "unverified": 0, "not_sealable": 0})
+        self.assertEqual(w["proof"], {"sealed": 0, "broken": 0, "unverified": 0, "quests": 0, "open_quests": 0})
         self.assertFalse(w["kill"]["on"])
 
     def test_a_later_step_cannot_show_done_while_an_earlier_one_is_open(self):

@@ -30,11 +30,14 @@ class ProofStep(unittest.TestCase):
             step = {s["name"]: s for s in ac.stage(self.repo)["steps"]}["Seal proof"]
         return step
 
+    # A seal that holds, in the shape verify_record returns (quest from the hashed record, checkable signature)
+    GOOD = {"sealed": True, "ok": True, "quest": "001", "verdict": "approve", "tests_passed": True, "checks": [{"check": "signature", "ok": True}]}
+
     def test_no_record_is_not_done(self):
         self.assertFalse(self.proof_done([])["done"])
 
     def test_one_sealed_record_that_verifies_is_done(self):
-        self.assertTrue(self.proof_done([{"sealed": True, "ok": True}])["done"])
+        self.assertTrue(self.proof_done([self.GOOD])["done"])
 
     def test_a_record_changed_after_sealing_is_not_done(self):
         s = self.proof_done([{"sealed": False, "ok": False}])
@@ -42,11 +45,12 @@ class ProofStep(unittest.TestCase):
         self.assertIn("verify", s["how"])
 
     def test_one_broken_record_reopens_the_step_even_beside_a_good_one(self):
-        self.assertFalse(self.proof_done([{"sealed": True, "ok": True}, {"sealed": False, "ok": False}])["done"])
+        self.assertFalse(self.proof_done([self.GOOD, {"sealed": False, "ok": False}])["done"])
 
 
 # ---- real bytes on disk: no mocked verifier (Codex r1 on PR #9: P1-1, P1-2, P1-3, P2-a, P2-b)
 import json  # noqa: E402
+from argparse import Namespace  # noqa: E402
 from test_proof import Base  # noqa: E402
 
 
@@ -76,6 +80,13 @@ class DiskHelpers(Base):
 
     def verify_all(self):
         return quiet(ac.cmd_verify, str(self.repo), None, False, False)
+
+    def seal(self, quest="001", cmd="python3 ok.py", verdict="approve", pr=""):
+        # No pull request by default: a PR link whose head can't be looked up keeps step 6 open (Codex r3, P1-2)
+        a = Namespace(quest=quest, pr=pr, verdict=verdict, test_cmd=cmd, workdir="", evaluator="Sera", builder="Brannoc",
+                      challenger="", defects=0, verifier="", timeout=60)
+        rc, _ = quiet(ac.cmd_seal, str(self.repo), a)
+        return rc, json.loads(self.ledger().read_text(encoding="utf-8").splitlines()[-1])["id"]
 
 
 class ProofStepOnDisk(DiskHelpers):
@@ -240,9 +251,10 @@ class ProofStepRound2(DiskHelpers):
     def test_r2_p1_2_a_ledger_of_only_blank_lines_with_no_records_is_empty(self):
         (self.repo / "docs/ops/evidence").mkdir(parents=True, exist_ok=True)
         self.ledger().write_text("\n  \n", encoding="utf-8")
-        _, proof = self.vault()
+        station, proof = self.vault()
         self.assertEqual(proof["broken"], 0)
-        self.assertEqual(self.verify_all()[0], 0)
+        self.assertNotEqual(station["state"], "done")
+        self.assertEqual(self.verify_all()[0], 1)       # Codex r3 P2: no records means step 6 is not done, so verify . fails too
 
     # P1-3: one snapshot per refresh
     def test_r2_p1_3_world_state_reads_the_ledger_once(self):
@@ -281,8 +293,9 @@ class ProofStepRound2(DiskHelpers):
         self.seal()
         self.seal_pr("https://example.test/pr/2")
         with mock.patch.object(ac, "pr_head", side_effect=self.moved):
-            _, proof = self.assert_open()
-            self.assertEqual(proof["not_sealable"], 1)
+            station, proof = self.assert_open()
+            self.assertEqual(proof["open_quests"], 1)
+            self.assertIn("Quest 001: the pull request moved after sealing", station["how"])
             rc, out = self.verify_all()
             self.assertEqual(rc, 1)
             self.assertIn("INTACT, NOT SEALABLE", out)
@@ -322,15 +335,180 @@ class ProofStepRound2(DiskHelpers):
 
 
 class WorldPagePolls(unittest.TestCase):
-    """P2-b: an older poll must never overwrite a newer one. world.html is not run here (Playwright is missing), so this
-    only checks that refresh() numbers its polls and drops a response older than the newest one applied."""
-    def test_refresh_numbers_its_polls_and_drops_stale_answers(self):
-        page = (Path(__file__).resolve().parents[1] / "ui" / "world.html").read_text(encoding="utf-8")
+    """An older poll must never overwrite a newer one, even when the newer one failed (Codex r3 P2). world.html is not
+    run here (Playwright is missing), so this only checks the page's text: refresh() numbers every request it sends and
+    applies an answer, or a failure, only from the newest request sent; the timer sends no new poll while one is out."""
+    def page(self):
+        return (Path(__file__).resolve().parents[1] / "ui" / "world.html").read_text(encoding="utf-8")
+
+    def test_refresh_applies_only_the_newest_request_sent(self):
+        page = self.page()
         body = page[page.index("async function refresh()"):]
         body = body[:body.index("\n")]
         self.assertIn("const my=++pollSeq", body)
-        self.assertEqual(body.count("if(my<=applied)return"), 2, "both the answer path and the connection-lost path must drop stale polls")
-        self.assertIn("applied=my", body)
+        self.assertEqual(body.count("if(my!==pollSeq)return"), 2, "both the answer path and the failure path must check the newest request")
+        self.assertNotIn("applied", body)
+
+    def test_the_timer_does_not_stack_polls(self):
+        self.assertIn("setInterval(()=>{if(!inflight)refresh()},3000)", self.page())
+
+
+# ---- Codex r3 on PR #9 (scope set by Cowork): the latest review per quest decides; fail closed; one snapshot of all files
+class ProofStepRound3(DiskHelpers):
+    def how(self):
+        return self.step6()["how"]
+
+    def bump(self, s):
+        return ("1" if s[0] != "1" else "2") + s[1:]
+
+    # 1. the latest review per quest decides
+    def test_r3_1_a_later_changes_review_reopens_the_quest(self):
+        self.seal("001")
+        self.seal("001", verdict="changes")
+        station, proof = self.assert_open()
+        self.assertIn("Quest 001: latest review requested changes; seal again after an approving review.", station["how"])
+        self.assertEqual(self.verify_all()[0], 1)
+
+    def test_r3_1_a_later_reject_reopens_the_quest(self):
+        self.seal("001")
+        self.seal("001", verdict="reject")
+        self.assert_open()
+        self.assertIn("Quest 001: latest review rejected it", self.how())
+
+    def test_r3_1_a_later_seal_with_failing_tests_reopens_the_quest(self):
+        self.seal("001")
+        self.seal("001", cmd="python3 -c 'import sys; sys.exit(3)'")
+        self.assert_open()
+        self.assertIn("Quest 001: the latest seal's tests failed", self.how())
+
+    def test_r3_1_an_approving_seal_after_changes_closes_the_quest(self):
+        self.seal("001", verdict="changes")
+        self.seal("001")
+        self.assertTrue(self.step6()["done"])
+        self.assertEqual(self.verify_all()[0], 0)
+
+    def test_r3_1_every_quest_needs_its_own_holding_seal(self):
+        self.seal("001")
+        self.seal("002", verdict="changes")
+        self.assert_open()
+        self.assertIn("Quest 002", self.how())
+        self.assertNotIn("Quest 001", self.how())
+
+    def test_r3_1_a_trust_snapshot_alone_cannot_close_step_6(self):
+        ac.seal_doc(self.repo.resolve(), "trust", {"agents": [], "guild_sha256": ""})
+        self.assertTrue(ac.verify_record(self.repo, self.lines_ids()[-1])["sealed"])
+        self.assert_open()
+        self.assertEqual(self.verify_all()[0], 1)
+
+    def test_r3_1_the_quest_comes_from_the_hashed_record_not_the_ledger_line(self):
+        self.seal("002", verdict="changes")
+        self.seal("001")
+        ls = [json.loads(l) for l in self.ledger().read_text(encoding="utf-8").splitlines()]
+        ls[0]["quest"] = "001"                   # the ledger line says 001; the hashed record says 002
+        self.ledger().write_text("".join(json.dumps(l) + "\n" for l in ls), encoding="utf-8")
+        self.assert_open()
+        self.assertIn("Quest 002", self.how())
+
+    def lines_ids(self):
+        return [json.loads(l)["id"] for l in self.ledger().read_text(encoding="utf-8").splitlines()]
+
+    # 2. a PR lookup that fails is "not checked", never a pass
+    def test_r3_2_a_pr_head_that_cannot_be_looked_up_keeps_step_6_open(self):
+        with mock.patch.object(ac, "pr_head", return_value=(None, "couldn't reach the pull request")):
+            self.seal("001", pr="https://github.com/o/r/pull/1")
+            station, _ = self.assert_open()
+            self.assertIn("PR head not checked: GitHub not reached", station["how"])
+            rc, out = self.verify_all()
+            self.assertEqual(rc, 1)
+            self.assertIn("PR head not checked: GitHub not reached", out)
+
+    def test_r3_2_a_pr_link_that_is_not_github_is_not_checked_either(self):
+        self.seal("001", pr="https://example.test/pr/1")
+        self.assert_open()
+        self.assertIn("PR head not checked", self.how())
+
+    def test_r3_2_a_pr_head_that_matches_closes_the_step(self):
+        commit = subprocess.run(["git", "-C", str(self.repo), "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
+        with mock.patch.object(ac, "pr_head", return_value=(commit, "test")):
+            self.seal("001", pr="https://github.com/o/r/pull/1")
+            self.assertTrue(self.step6()["done"])
+            self.assertEqual(self.verify_all()[0], 0)
+
+    # 3. the ledger AND every record file are read once per refresh
+    def test_r3_3_two_record_file_versions_in_one_refresh_cannot_add_up_to_done(self):
+        _, a = self.seal("001")
+        _, b = self.seal("002")
+        good = {r: self.record(r).read_text(encoding="utf-8") for r in (a, b)}
+        bad = {r: good[r].replace('"Sera"', '"Serb"') for r in (a, b)}
+        self.record(b).write_text(bad[b], encoding="utf-8")        # version 1: A good, B changed
+        real, calls = ac.verify_record, []
+
+        def swap_after_first(*args, **kw):
+            out = real(*args, **kw)
+            calls.append(1)
+            if len(calls) == 1:                                     # version 2: A changed, B good
+                self.record(a).write_text(bad[a], encoding="utf-8")
+                self.record(b).write_text(good[b], encoding="utf-8")
+            return out
+        with mock.patch.object(ac, "verify_record", side_effect=swap_after_first):
+            w = ac.world_state(self.repo)
+        self.assertEqual(w["proof"]["broken"], 1)                  # judged on version 1 alone: B is broken
+        self.assertNotEqual({s["id"]: s for s in w["stations"]}["proof"]["state"], "done")
+
+    def test_r3_3_each_record_file_is_read_once_per_refresh(self):
+        for q in ("001", "002", "003"):
+            self.seal(q)
+        real, seen = ac.Path.read_bytes, []
+
+        def counting(p):
+            if p.name.endswith(".json") and p.parent.name == "evidence":
+                seen.append(p.name)
+            return real(p)
+        with mock.patch.object(ac.Path, "read_bytes", counting):
+            ac.world_state(self.repo)
+        self.assertEqual(sorted(seen), sorted(set(seen)))
+        self.assertEqual(len(seen), 3)
+
+    def test_r3_3_a_record_file_renamed_to_another_valid_id_is_broken(self):
+        _, a = self.seal("001")
+        other = "001-" + self.bump(a[4:])
+        self.record(a).rename(self.record(other))
+        ls = self.ledger().read_text(encoding="utf-8").replace(a, other)
+        self.ledger().write_text(ls, encoding="utf-8")
+        _, proof = self.assert_open()
+        self.assertEqual(proof["broken"], 1)
+
+    # 4. an HMAC record this machine can't check names the fix
+    def test_r3_4_an_hmac_record_not_checkable_here_names_cosign(self):
+        self.seal("001")
+        _, b = self.seal("002")
+        f = self.record(b)
+        rec = json.loads(f.read_text(encoding="utf-8"))
+        rec.pop("sig_ed25519", None); rec.pop("signer", None)      # an older record: HMAC only
+        f.write_text(json.dumps(rec), encoding="utf-8")
+        ac.KEY_FILE = Path(self.tmp.name) / "not-this-machines.key"
+        station, proof = self.assert_open()
+        self.assertEqual(proof["unverified"], 1)
+        self.assertIn("Run `agent_company.py cosign` on the machine that sealed it.", station["how"])
+        self.assertEqual(self.verify_all()[0], 1)
+
+    # 5. the CLI and the World agree
+    def test_r3_5_an_empty_ledger_is_not_done_and_verify_fails(self):
+        self.assert_open()
+        rc, out = self.verify_all()
+        self.assertEqual(rc, 1)
+        self.assertIn("no evidence records yet", out)
+
+    def test_r3_5_a_failing_rerun_reopens_the_world_until_a_passing_rerun(self):
+        self.seal("001")
+        self.assertTrue(self.step6()["done"])
+        (self.repo / "ok.py").write_text("import sys\nsys.exit(4)\n")
+        self.assertEqual(quiet(ac.cmd_verify, str(self.repo), None, True, False)[0], 1)
+        station, _ = self.assert_open()
+        self.assertIn("Quest 001: the tests failed when re-run", station["how"])
+        (self.repo / "ok.py").write_text("print('ok')\n")
+        self.assertEqual(quiet(ac.cmd_verify, str(self.repo), None, True, False)[0], 0)
+        self.assertTrue(self.step6()["done"])
 
 
 if __name__ == "__main__":
