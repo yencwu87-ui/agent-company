@@ -241,6 +241,7 @@ function renderCard(){
   if(R.tool)c.append(row('Tool',R.tool+(R.pid?' · pid '+R.pid:'')));if(R.exit!==undefined&&R.state!=='running')c.append(row('Exit code',String(R.exit),R.exit===0?'ok':'bad'));
   c.append(row('Coordinators allowed','exactly 1'),row('Agents may merge','never','bad'))}
  if(s.id==='proof')c.append(row('Sealed records',String(W.proof.sealed),W.proof.sealed?'ok':''),row('Broken records',String(W.proof.broken),W.proof.broken?'bad':''));
+ if(s.id==='proof'&&W.proof.unverified)c.append(row('Signature not checkable here',String(W.proof.unverified),'bad'));
  c.append(el('div','note',s.state==='done'?'This step has evidence in the repo.':s.how));
  if(s.action&&s.state==='next'&&!W.kill.on)c.append(actionBtn(s));
 }
