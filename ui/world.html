@@ -199,6 +199,7 @@ function panels(){
  chip($('chipsL'),'Harness pieces enforced',W.harness.fitted+' / 6',C.orange,'harness',W.harness.fitted<6);
  chip($('chipsL'),'Agents on the team',String(W.team.length),C.purple,'team');
  const G=kit().golden;if(G.installed)chip($('chipsL'),'Golden image '+G.version,G.result==='MATCH'?'match':G.result==='DRIFT'?'drift ('+G.drift.length+')':'altered',G.result==='MATCH'?C.teal:C.red,'harness',G.result!=='MATCH');
+ {const L=life();if(L.installed){const bad=L.side.length>0||L.stage==='Retired'||!!L.untrusted;chip($('chipsL'),'Agent stage'+(L.agent?' · '+L.agent:''),L.stage+(L.side.length?' · '+L.side.join(', '):''),bad?C.red:L.stage==='Deployed'?C.green:C.blue,'harness',bad)}}
  chip($('chipsR'),'Orders waiting',String(W.orders.pending),C.purple,'orders');
  chip($('chipsR'),'Proof sealed',String(W.proof.sealed),C.teal,'proof',W.proof.broken>0);
  chip($('chipsR'),'Kill switch',W.kill.on?'ON':'off',W.kill.on?C.red:C.green,'kill',W.kill.on);
@@ -217,12 +218,19 @@ const ACTIONS={'install-harness':['Install the harness','/api/harness/install','
  'commit-harness':['Commit the harness files','/api/harness/commit','Committing…',r=>'Harness files committed ('+(r.commit||'?')+'). Every worktree now carries the guard.']};
 function actionBtn(s){const A=ACTIONS[s.action]||ACTIONS['install-harness'];const b=el('button','btn go',A[0]);b.style.flex='none';b.disabled=!!W.demo;if(W.demo)b.title='Run the live world to use this';
  b.onclick=async()=>{b.disabled=true;b.textContent=A[2];try{const r=await api(A[1],{});if(r.error)throw new Error(r.error);say(A[3](r));await refresh()}catch(e){say('Refused: '+e.message);b.disabled=false;b.textContent=A[0]}};return b}
-function kit(){return W.kit||{golden:{installed:false},recovery:{drills:0,last:null}}}
+function kit(){return W.kit||{golden:{installed:false},recovery:{drills:0,last:null},lifecycle:{installed:false}}}
+function life(){return kit().lifecycle||{installed:false}}
 function kitRows(c){const G=kit().golden;c.append(el('div','note','Harness Marketplace kit (read only)'));
  if(!G.installed){c.append(row('Golden image','not in this repo'));return}
  c.append(row('Golden image',G.version+(G.sha?' · '+G.sha:'')),row('Image pin',G.pinned?'the hash in the CI workflow':'not pinned: compared with the image file in this repo only',G.pinned?'ok':''),row('Repo against the image',G.result==='MATCH'?'match ('+G.checked+' checks)':G.result==='DRIFT'?'drift: '+G.drift.length+' of '+G.checked:'image altered',G.result==='MATCH'?'ok':'bad'));
  G.drift.slice(0,6).forEach(d=>c.append(row('',d,'bad')));if(G.drift.length>6)c.append(row('','and '+(G.drift.length-6)+' more','bad'));
- c.append(el('div','note','A match means the kit’s standard files are in place. It does not mean an agent behaves well. The screen cannot change the image.'))}
+ c.append(el('div','note','A match means the kit’s standard files are in place. It does not mean an agent behaves well. The screen cannot change the image.'));
+ lifeRows(c)}
+function lifeRows(c){const L=life();if(!L.installed)return;
+ c.append(el('div','note','Deployment lifecycle'+(L.agent?' of '+L.agent:'')+' (read only)'),row('Stage',L.stage+(L.side.length?' · '+L.side.join(', '):''),L.side.length||L.stage==='Retired'?'bad':L.stage==='Deployed'?'ok':''));
+ L.steps.forEach(s=>c.append(row(s.name,s.state+(s.note?' · '+s.note:''),s.state==='done'?'ok':(s.state==='failed'||s.state==='refit'||s.state==='not shown'||s.state==='not now'||s.state==='failed to start')?'bad':'')));
+ if(L.untrusted)c.append(row('Ledger','not trusted: '+L.untrusted,'bad'));
+ c.append(el('div','note','Read from the declaration, the golden image and the ledger, in order: a stage shows only when every stage before it holds. It shows that steps were taken and recorded, not how the agent behaves. This screen runs no scanner, so the scan appears only as the last deploy recorded it. The steps themselves are run from the terminal with the kit’s lifecycle script, which is not released yet.'))}
 function row(k,v,cls){const r=el('div','row');r.append(el('span','',k),el('b',cls||'',v));return r}
 function renderCard(){
  const c=$('card');c.textContent='';const x=el('button','x','×');x.setAttribute('aria-label','Close');x.onclick=hideCard;c.append(x);

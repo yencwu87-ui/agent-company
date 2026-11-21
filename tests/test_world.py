@@ -1,5 +1,6 @@
 """The live 3D world: the page, its offline three.js files, and the state it draws (read from the real repo)."""
 import json
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -481,3 +482,161 @@ class WorldInterrogation(_KitRepo, unittest.TestCase):
             s = json.loads(json.dumps(good)); g = s["hooks"]["PreToolUse"][0]; change(g["hooks"][0], g)
             sp.write_text(json.dumps(s), encoding="utf-8")
             self.assertEqual(self.kit()["golden"]["result"], "DRIFT")
+
+
+class WorldLifecycle(_KitRepo, unittest.TestCase):
+    """The World shows where one agent stands in the kit's deployment lifecycle (kit 1.6.0), read from the declaration,
+    the golden image and the ledger. It runs none of the kit's code and never shows a later stage than the files support."""
+
+    CARD = {"agent": "builder-1", "purpose": "Fix rounding", "may_never": ["merge"], "answers_for_it": "A Person"}
+
+    def life(self):
+        return self.kit()["lifecycle"]
+
+    def ready(self):
+        self.scaffold()
+        (self.repo / "scripts/lifecycle.py").write_text("# lifecycle\n", encoding="utf-8")
+        (self.repo / ".harness/ledger.jsonl").write_text("", encoding="utf-8")
+
+    def card(self, **over):
+        (self.repo / ".harness/declaration.json").write_text(json.dumps({**self.CARD, **over}), encoding="utf-8")
+
+    def add(self, **entry):
+        lp = self.repo / ".harness/ledger.jsonl"
+        led = [json.loads(l) for l in lp.read_text(encoding="utf-8").splitlines() if l.strip()]
+        e = {"seq": len(led) + 1, "ts": "2026-11-21T02:00:00Z", **entry, "prev": led[-1]["hash"] if led else "0" * 64}
+        e["hash"] = ac._ledger_entry_hash(e)
+        with open(lp, "a", encoding="utf-8") as f:
+            f.write(json.dumps(e, sort_keys=True, separators=(",", ":"), ensure_ascii=False) + "\n")
+        return e
+
+    def trial(self, result="PASS"):
+        return self.add(type="trial", kind="offline", by="Owner", result=result, fingerprint=ac._lifecycle_fingerprint(self.repo))
+
+    def steps(self):
+        return {s["name"]: s["state"] for s in self.life()["steps"]}
+
+    def test_a_repo_without_the_lifecycle_script_says_so(self):
+        self.assertEqual(self.life(), {"installed": False})
+        self.scaffold()
+        self.assertEqual(self.life(), {"installed": False})
+
+    def test_no_declaration_means_no_stage_even_though_the_harness_fits(self):
+        self.ready()
+        L = self.life()
+        self.assertEqual((L["installed"], L["stage"], L["agent"]), (True, "Not started", None))
+        self.assertEqual(self.steps(), {"Declared": "not yet", "Fitted": "done", "Scanned": "not on record", "Trialled": "not yet", "Deployed": "not yet"})
+
+    def test_a_card_missing_a_field_is_not_a_declaration(self):
+        self.ready()
+        for bad in ({"answers_for_it": ""}, {"may_never": []}, {"purpose": 3}):
+            self.card(**bad)
+            self.assertEqual(self.steps()["Declared"], "failed", bad)
+        self.card()
+        self.assertEqual((self.life()["stage"], self.life()["agent"]), ("Fitted", "builder-1"))
+
+    def test_drift_takes_the_stage_back(self):
+        self.ready(); self.card(); self.trial()
+        self.assertEqual(self.life()["stage"], "Trialled")
+        (self.repo / "scripts/harness.py").write_text("# loosened\n", encoding="utf-8")
+        self.assertEqual((self.life()["stage"], self.steps()["Fitted"]), ("Declared", "failed"))
+
+    def test_a_trial_counts_only_while_nothing_it_covered_has_changed(self):
+        self.ready(); self.card(); self.trial()
+        self.assertEqual((self.life()["stage"], self.life()["side"]), ("Trialled", []))
+        self.card(purpose="Also deploy to production")
+        L = self.life()
+        self.assertEqual((L["stage"], L["side"], self.steps()["Trialled"]), ("Fitted", ["REFIT"], "refit"))
+        self.assertIn("declaration", json.dumps(L["steps"]))
+        self.trial()
+        self.assertEqual(self.life()["stage"], "Trialled")
+        (self.repo / ".claude/settings.local.json").write_text("{}", encoding="utf-8")
+        self.assertEqual(self.life()["side"], ["REFIT"])
+
+    def test_a_failed_trial_is_not_a_trial(self):
+        self.ready(); self.card(); self.trial("FAIL")
+        self.assertEqual((self.life()["stage"], self.steps()["Trialled"]), ("Fitted", "failed"))
+
+    def test_deployed_needs_a_recorded_deploy_for_this_agent_and_shows_the_scan_as_recorded(self):
+        self.ready(); self.card(); self.trial()
+        self.add(type="deploy", by="Owner", agent="someone-else", result="STARTED", gates={"scanned": "PASS"})
+        self.add(type="deploy", by="Owner", agent="builder-1", result="REFUSED", gates={"scanned": "FAIL"})
+        self.assertEqual(self.life()["stage"], "Trialled")
+        self.add(type="deploy", by="Owner", agent="builder-1", result="STARTED", gates={"scanned": "SKIPPED (allowed by Owner)"})
+        L = self.life()
+        self.assertEqual(L["stage"], "Deployed")
+        self.assertEqual(self.steps()["Scanned"], "as recorded")
+        self.assertIn("SKIPPED (allowed by Owner)", json.dumps(L["steps"]))
+        self.assertEqual(L["last_deploy"]["by"], "Owner")
+
+    def test_a_change_after_the_deploy_is_shown_as_refit_not_as_deployed(self):
+        self.ready(); self.card(); self.trial()
+        self.add(type="deploy", by="Owner", agent="builder-1", result="STARTED", gates={"scanned": "PASS"})
+        self.card(purpose="changed")
+        self.assertEqual((self.life()["stage"], self.life()["side"]), ("Fitted", ["REFIT"]))
+
+    def test_only_a_started_command_counts_as_deployed(self):
+        self.ready(); self.card(); self.trial()
+        self.add(type="deploy", by="Owner", agent="builder-1", result="READY", gates={"scanned": "PASS"})
+        self.assertEqual((self.life()["stage"], self.steps()["Deployed"]), ("Trialled", "ready, nothing started"))
+        self.add(type="deploy", by="Owner", agent="builder-1", result="START FAILED", gates={"scanned": "PASS"})
+        self.assertEqual((self.life()["stage"], self.steps()["Deployed"]), ("Trialled", "failed to start"))
+        self.add(type="deploy", by="Owner", agent=" Builder-1", result="STARTED", gates={"scanned": "PASS"})
+        self.assertEqual(self.life()["stage"], "Deployed")
+
+    def test_replacing_a_kit_script_or_the_scan_baseline_after_the_trial_is_refit(self):
+        self.ready(); self.card(); self.trial()
+        (self.repo / "scripts/golden.py").write_text("print('MATCH')\n", encoding="utf-8")
+        self.assertEqual(self.life()["side"], ["REFIT"])
+        self.assertIn("kit scripts", json.dumps(self.life()["steps"]))
+        self.trial()
+        (self.repo / "security").mkdir(); (self.repo / "security/foxguard-baseline.json").write_text("{}", encoding="utf-8")
+        self.assertIn("code scan baseline", json.dumps(self.life()["steps"]))
+
+    def test_a_trial_that_covers_more_than_the_screen_knows_is_not_shown_as_passed(self):
+        self.ready(); self.card()
+        self.add(type="trial", kind="offline", by="Owner", result="PASS", fingerprint={**ac._lifecycle_fingerprint(self.repo), "a newer part": "abc"})
+        self.assertEqual((self.life()["stage"], self.steps()["Trialled"]), ("Fitted", "not shown"))
+
+    def test_a_retired_name_written_differently_is_still_retired(self):
+        self.ready(); self.card(); self.trial()
+        self.add(type="retire-agent", by="Owner", agent="builder-1", reason="done")
+        self.card(agent="Builder-1 "); self.trial()
+        self.assertEqual(self.life()["stage"], "Retired")
+
+    def test_the_stop_is_a_side_state(self):
+        self.ready(); self.card(); self.trial()
+        (self.repo / ".harness/KILL").write_text("{}", encoding="utf-8")
+        self.assertEqual(self.life()["side"], ["STOPPED"])
+
+    def test_a_retired_agent_shows_retired_and_a_successor_does_not(self):
+        self.ready(); self.card(); self.trial()
+        self.add(type="retire-agent", by="Owner", agent="builder-1", reason="done")
+        self.assertEqual(self.life()["stage"], "Retired")
+        self.card(agent="builder-2"); self.trial()
+        self.assertEqual(self.life()["stage"], "Trialled")
+
+    def test_a_ledger_that_does_not_chain_supports_nothing(self):
+        self.ready(); self.card(); self.trial()
+        self.add(type="deploy", by="Owner", agent="builder-1", result="STARTED", gates={"scanned": "PASS"})
+        lp = self.repo / ".harness/ledger.jsonl"
+        lp.write_text(lp.read_text(encoding="utf-8").replace("Owner", "Mallory", 1), encoding="utf-8")
+        L = self.life()
+        self.assertEqual(L["stage"], "Fitted")
+        self.assertIn("chain", L["untrusted"])
+        self.assertEqual((self.steps()["Trialled"], self.steps()["Deployed"]), ("not shown", "not shown"))
+
+    def test_a_declaration_linked_out_of_the_repo_is_not_read(self):
+        self.ready()
+        outside = Path(tempfile.mkdtemp()); self.addCleanup(shutil.rmtree, outside, True)
+        (outside / "card.json").write_text(json.dumps(self.CARD), encoding="utf-8")
+        (self.repo / ".harness/declaration.json").symlink_to(outside / "card.json")
+        self.assertEqual((self.life()["agent"], self.steps()["Declared"]), (None, "failed"))
+
+    def test_odd_ledger_shapes_do_not_take_the_screen_down(self):
+        self.ready(); self.card()
+        for entry in ({"type": "trial", "fingerprint": "x", "result": "PASS"}, {"type": "deploy", "agent": "builder-1", "result": "STARTED", "gates": [1]},
+                      {"type": "trial", "fingerprint": {"image": {"a": 1}}, "result": ["PASS"]}, {"type": "retire-agent", "agent": ["builder-1"]}):
+            self.add(**entry)
+            self.assertIn(self.life()["stage"], ("Fitted", "Not started", "Declared"), entry)
+
