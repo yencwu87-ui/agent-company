@@ -489,7 +489,13 @@ def verify_record(repo, rid: str, rerun: bool = False, timeout: int = 1800, sign
         add("OpenProof verifier", bool(rec["external"].get("passed")), f"{rec['external'].get('cmd')} → exit {rec['external'].get('exit')}")
     if rerun:
         head = _git(root, "rev-parse", "HEAD")
-        if head != rec.get("commit"):
+        # The command comes from the record itself: run it only when schema, hash, chain and signature all check out here.
+        # A signature this machine can't check (an older HMAC record) is not enough, since a rewritten record can drop it.
+        unproven = [c["check"] for c in checks if c["check"] in ("schema", "hash", "chain", "signature") and c["ok"] is not True]
+        if unproven or not any(c["check"] == "signature" for c in checks):
+            add("re-run", None, "not re-run: the record's " + (", ".join(unproven) or "signature") +
+                " can't be confirmed here, so its test command isn't trusted to run")
+        elif head != rec.get("commit"):
             add("re-run", None, f"check out {rec.get('commit', '')[:12]} to re-run (HEAD is {head[:12]})")
         else:
             r = _run(t.get("cmd", ""), root, timeout)
