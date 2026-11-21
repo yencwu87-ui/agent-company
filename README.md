@@ -290,7 +290,7 @@ Each record is:
 - that the commit exists;
 - that the **pull request's head is the sealed commit**, now as well as at sealing time. It asks GitHub with `gh` when you're signed in, and otherwise uses `git ls-remote` on the matching remote. If the PR moved after sealing, the record stops verifying, and `seal` refuses a checkout that isn't the PR's head;
 - that the tests passed and the verdict approves;
-- with `--rerun`, that the tests still pass at that commit.
+- with `--rerun`, that the tests still pass at that commit. The test command is read from the record, so it runs only when the record's schema, hash, chain and signature all check out on this machine.
 
 If you set `OPENPROOF_VERIFY_CMD` (or pass `--verifier`), that OpenProof verifier runs on the record. Its result is sealed in too, and a failing verifier means no seal.
 
