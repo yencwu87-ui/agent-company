@@ -3,3 +3,7 @@ __pycache__/
 node_modules/
 .DS_Store
 demo/last-url.txt
+
+# Software factory runtime state (local to the machine running it)
+/factory/jobs/
+/.worktrees/
