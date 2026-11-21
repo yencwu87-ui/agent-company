@@ -121,6 +121,7 @@ Rules the screen keeps:
 - **The Forge card shows the golden image:** its version and hash, whether the repo matches it, and each drifted or missing item by name. It applies the same rules as the kit's own `golden check`. A match means the kit's standard files are in place, not that an agent behaves well.
 - **It says whether the image is pinned.** If the repo's CI workflow carries the kit's `--expect-sha` hash, the image must be that one, or the card says ALTERED. With no pin the card says "not pinned": the World then compares with the image file in the repo, and an image that was edited and hashed again is not detected.
 - **The kill-switch tower shows the last recovery drill** in the kit's ledger, only when the ledger's hash chain holds. Otherwise it says the drill is not shown, and why.
+- **An "Agent stage" chip shows where one agent stands in the kit's deployment lifecycle** (kit 1.6.0, not released): Declared, Fitted, Trialled, Deployed, with Refit, Stopped and Retired beside them. It is read from the declaration, the golden image and the ledger, in order, and only while the ledger's chain holds; none of the kit's code is run. The World runs no scanner, so the scan is shown only as the last deploy recorded it, and the World never shows a later stage than the kit's own `lifecycle.py status` (compared in eleven states of one real project on 21 Nov 2026). It shows that steps were taken and recorded, not how the agent behaves.
 
 The kill switch is read from the main checkout too, so a stop set there shows when the World is opened on a linked worktree, and the background runner will not start there. If the World cannot work out which repository a folder belongs to, it shows the switch as on.
 
@@ -438,7 +439,7 @@ The council is a self-evaluation. It never replaces the tests, `seal`, the owner
 ## Tests
 
 ```sh
-python3 -m unittest discover -s tests -v       # 152 tests (and 590 guard and rule cases): launch, doctor, smoke, import-agents, CLI, deploy rules, local server, seal/verify and tampering, pull-request match, harness install and commit, guard decisions, hostile-command guard cases, pre-push, claim words, Review Council scoring and sealing, sealed cards and trust, the World's state and limits, the kit readout (golden image, recovery drill), the background runner
+python3 -m unittest discover -s tests -v       # 165 tests (and 590 guard and rule cases): launch, doctor, smoke, import-agents, CLI, deploy rules, local server, seal/verify and tampering, pull-request match, harness install and commit, guard decisions, hostile-command guard cases, pre-push, claim words, Review Council scoring and sealing, sealed cards and trust, the World's state and limits, the kit readout (golden image, recovery drill, lifecycle stage), the background runner
                                                # 3 of the 152 (Ed25519 signing) need ssh-keygen on the PATH
 npm i -D playwright && npx playwright install chromium
 node tests/test_ui.mjs                         # 45 browser checks of the Command map and the earlier Guild screen, including local mode on a real repo (harness install, record verification)

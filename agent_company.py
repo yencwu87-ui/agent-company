@@ -1153,6 +1153,141 @@ def recovery_status(repo: str | Path) -> dict:
     return {"drills": drills, "last": last}
 
 
+def _kit_ledger(root: Path):
+    """(entries, why not) for the kit's ledger. Entries are returned only when every line reads and the hash chain holds."""
+    lp = root / ".harness" / "ledger.jsonl"
+    if not os.path.lexists(lp):
+        return [], ""
+    text = _read_inside(root, ".harness/ledger.jsonl", _KIT_MAX)
+    if text is None:
+        return None, "the ledger cannot be read (not a file inside this repository, too large, or not UTF-8)"
+    out, prev = [], "0" * 64
+    for i, line in enumerate((l for l in text.splitlines() if l.strip()), 1):
+        try:
+            e = json.loads(line)
+            ok = isinstance(e, dict) and e.get("prev") == prev and e.get("seq") == i and e.get("hash") == _ledger_entry_hash(e)
+        except (ValueError, TypeError, RecursionError):
+            ok = False
+        if not ok:
+            return None, f"the ledger's chain is broken at line {i}"
+        prev = e["hash"]
+        out.append(e)
+    return out, ""
+
+
+def _sha_inside(root: Path, rel: str) -> str:
+    """sha256 of a file inside the repo, "absent" if nothing is there, "unreadable" for anything else (a link out of the
+    repo, a folder, too large). The kit's own lifecycle.py says "absent" for a file it cannot read; "unreadable" here can
+    only make this screen show Refit where the kit would not, never the other way round."""
+    if not os.path.lexists(root / rel):
+        return "absent"
+    data = _file_inside(root / rel, [root], 5_000_000)
+    return hashlib.sha256(data).hexdigest() if data is not None else "unreadable"
+
+
+def _lifecycle_fingerprint(repo: str | Path) -> dict:
+    """What a kit trial covers, computed the way the kit's lifecycle.py computes it."""
+    root = Path(repo).resolve()
+    img = _json_inside(root, "scripts/golden-image.json")
+    return {"image": str(img.get("image_sha", "unreadable")) if isinstance(img, dict) else "unreadable",
+            "settings": _sha_inside(root, ".claude/settings.json") + ":" + _sha_inside(root, ".claude/settings.local.json"),
+            "declaration": _sha_inside(root, ".harness/declaration.json"),
+            "stop script": _sha_inside(root, "scripts/runtime.py")}
+
+
+def lifecycle_status(repo: str | Path, golden: dict | None = None) -> dict:
+    """Where one agent stands in the kit's deployment lifecycle (kit 1.6.0): Declared, Fitted, Scanned, Trialled,
+    Deployed, with Refit, Stopped and Retired beside them. Read from the declaration, the golden image and the ledger;
+    none of the kit's code is run. The stages go in order, so the screen never shows one while an earlier one is open.
+    The screen runs no scanner: the scan is shown only as the last deploy recorded it, and does not hold the stage back."""
+    root = Path(repo).resolve()
+    if _read_inside(root, "scripts/lifecycle.py", _KIT_MAX) is None:
+        return {"installed": False}
+    golden = golden if golden is not None else golden_status(root)
+    led, why = _kit_ledger(root)
+    steps, side = [], []
+
+    card, card_note = _json_inside(root, ".harness/declaration.json"), ""
+    if not os.path.lexists(root / ".harness" / "declaration.json"):
+        card, d_state, card_note = None, "not yet", ".harness/declaration.json is not there"
+    else:
+        text_ok = lambda v: isinstance(v, str) and bool(v.strip())
+        good = (isinstance(card, dict) and all(text_ok(card.get(k)) for k in ("agent", "purpose", "answers_for_it"))
+                and isinstance(card.get("may_never"), list) and bool(card["may_never"]) and all(text_ok(x) for x in card["may_never"]))
+        if good:
+            d_state, card_note = "done", f"{card['purpose'][:80]} · answers for it: {card['answers_for_it'][:60]}"
+        else:
+            card, d_state = None, "failed"
+            card_note = "the declaration needs an agent, a purpose, a may_never list and a person who answers for it, in a file inside this repo"
+    agent = card["agent"][:80] if card else None
+    steps.append({"name": "Declared", "state": d_state, "note": card_note})
+
+    fitted = bool(golden.get("installed")) and golden.get("result") == "MATCH"
+    steps.append({"name": "Fitted", "state": "done" if fitted else "failed",
+                  "note": f"golden image {golden.get('version', '?')}: {str(golden.get('result', 'not installed')).lower()}"})
+
+    mine = lambda e, kind: e.get("type") == kind and isinstance(e.get("agent"), str) and e.get("agent") == agent
+    runs = [e for e in (led or []) if agent and mine(e, "deploy") and e.get("result") in ("STARTED", "READY")]
+    last = runs[-1] if runs else None
+    gates = last.get("gates") if last and isinstance(last.get("gates"), dict) else {}
+    if led is None:
+        steps.append({"name": "Scanned", "state": "not shown", "note": why})
+    elif last and isinstance(gates.get("scanned"), str):
+        steps.append({"name": "Scanned", "state": "as recorded", "note": f"{gates['scanned'][:80]} at the last deploy; this screen runs no scanner"})
+    else:
+        steps.append({"name": "Scanned", "state": "not on record", "note": "no deploy has recorded a scan; this screen runs no scanner"})
+
+    trialled = False
+    if led is None:
+        steps.append({"name": "Trialled", "state": "not shown", "note": why})
+    else:
+        trials = [e for e in led if e.get("type") == "trial"]
+        t = trials[-1] if trials else None
+        if t is None:
+            steps.append({"name": "Trialled", "state": "not yet", "note": "no trial is recorded"})
+        elif t.get("result") != "PASS":
+            steps.append({"name": "Trialled", "state": "failed", "note": f"the last trial did not pass (ledger #{t.get('seq')})"})
+        else:
+            then, now = t.get("fingerprint"), _lifecycle_fingerprint(root)
+            then = then if isinstance(then, dict) else {}
+            changed = [k for k in now if then.get(k) != now[k]]
+            if changed:
+                side.append("REFIT")
+                steps.append({"name": "Trialled", "state": "refit", "note": f"changed since the trial of {str(t.get('ts', ''))[:20]}: the " + ", the ".join(changed)})
+            else:
+                trialled = True
+                steps.append({"name": "Trialled", "state": "done", "note": f"offline trial passed {str(t.get('ts', ''))[:20]} (ledger #{t.get('seq')})"})
+
+    deployed = bool(last) and trialled
+    if led is None:
+        steps.append({"name": "Deployed", "state": "not shown", "note": why})
+    elif last:
+        steps.append({"name": "Deployed", "state": "done" if deployed else "not now",
+                      "note": f"{str(last.get('result'))[:10]} by {str(last.get('by', '?'))[:60]} at {str(last.get('ts', ''))[:20]} (ledger #{last.get('seq')})"})
+    else:
+        steps.append({"name": "Deployed", "state": "not yet", "note": "no deploy is recorded for this agent"})
+
+    stage = "Not started"
+    for name, ok in (("Declared", d_state == "done"), ("Fitted", fitted), ("Trialled", trialled), ("Deployed", deployed)):
+        if not ok:
+            break
+        stage = name
+    if kill_file(root) is not None:
+        side.insert(0, "STOPPED")
+    if led and agent and any(mine(e, "retire-agent") for e in led):
+        stage = "Retired"
+    out = {"installed": True, "agent": agent, "stage": stage, "side": side, "steps": steps,
+           "last_deploy": ({"by": str(last.get("by", "?"))[:60], "ts": str(last.get("ts", ""))[:30], "result": str(last.get("result"))[:10]} if last else None)}
+    if led is None:
+        out["untrusted"] = why
+    return out
+
+
+def _kit_state(root: Path) -> dict:
+    g = golden_status(root)
+    return {"golden": g, "recovery": recovery_status(root), "lifecycle": lifecycle_status(root, g)}
+
+
 def world_state(repo: str | Path) -> dict:
     """Everything the 3D world draws, read from the repository at this moment. A station is 'done' only when every
     station before it is done, so the screen never shows a step as finished while an earlier one is still open."""
@@ -1186,7 +1321,7 @@ def world_state(repo: str | Path) -> dict:
             "orders": {"pending": len(list(inbox.glob("[0-9][0-9][0-9]_*.md"))) if inbox.is_dir() else 0,
                        "done": len(list(done.glob("[0-9][0-9][0-9]_*.md"))) if done.is_dir() else 0},
             "proof": {"sealed": sum(1 for r in recs if r.get("sealed")), "broken": sum(1 for r in recs if not r.get("ok"))},
-            "kill": kill, "kit": {"golden": golden_status(root), "recovery": recovery_status(root)},
+            "kill": kill, "kit": _kit_state(root),
             "read_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
 
 
