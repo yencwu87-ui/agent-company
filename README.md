@@ -280,8 +280,8 @@ Each record is:
 - **chained:** linked to the previous record in `docs/ops/evidence/ledger.jsonl`;
 - **signed with Ed25519** (since 0.6.1), using `ssh-keygen`, which ships with macOS, Linux and Windows 10+:
   - the private key stays on your machine (`~/.agent-company/seal_ed25519`);
-  - the public key goes into `docs/ops/evidence/allowed_signers`;
-  - so anyone with the repo can check a record on their own machine. Check the key's fingerprint with the owner, or pass a signers file you trust with `verify --signers <file>`;
+  - the public key goes into `docs/ops/evidence/allowed_signers`, and into your own list, `~/.agent-company/allowed_signers` (`seal` and `cosign` add this machine's key there);
+  - so anyone with the repo can check a record on their own machine. Check the key's fingerprint with the owner, or pass a signers file you trust with `verify --signers <file>`. Plain `verify` reads the repository's own list and says so: anyone who can edit the evidence can edit that list too. Protect `docs/ops/evidence/` with a CODEOWNERS entry and branch protection, so changes to it need the owner's review;
   - agents can't read or change either key (the guard refuses `~/.agent-company` and `docs/ops/evidence/`).
 - **also signed with HMAC-SHA256** (`~/.agent-company/seal.key`), as before. The HMAC signature can only be checked on the machine that made it. A record that has only HMAC shows **INTACT, SIGNATURE NOT CHECKABLE HERE** on another machine. Hash and chain are still checked there. It never shows BROKEN just because the key is missing. On the machine that sealed it, `python3 agent_company.py cosign <repo>` adds an Ed25519 signature to those records.
 
@@ -290,7 +290,11 @@ Each record is:
 - that the commit exists;
 - that the **pull request's head is the sealed commit**, now as well as at sealing time. It asks GitHub with `gh` when you're signed in, and otherwise uses `git ls-remote` on the matching remote. If the PR moved after sealing, the record stops verifying, and `seal` refuses a checkout that isn't the PR's head;
 - that the tests passed and the verdict approves;
-- with `--rerun`, that the tests still pass at that commit. The test command is read from the record, so it runs only when the record's schema, hash, chain and signature all check out on this machine.
+- with `--rerun`, that the tests still pass. The test command is read from the record and runs in your working tree, which must be checked out at the sealed commit. Because it runs code, it runs only when:
+  - the record's schema, hash, chain and signature all check out on this machine;
+  - the record's key is trusted from outside the checkout: in `~/.agent-company/allowed_signers`, or in a file you pass with `--signers` that is outside the repository (a `--signers` file inside it is refused). A record signed only with this machine's HMAC key is trusted already;
+  - the working tree has no uncommitted or untracked changes (ignored files and `docs/ops/evidence/` aside);
+  - each record runs at most once, even if the ledger lists it twice. If the pull request moved after sealing, the sealed commit is still re-run, and the result says the PR has since moved.
 
 If you set `OPENPROOF_VERIFY_CMD` (or pass `--verifier`), that OpenProof verifier runs on the record. Its result is sealed in too, and a failing verifier means no seal.
 
